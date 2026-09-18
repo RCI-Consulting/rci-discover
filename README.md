@@ -89,3 +89,26 @@ PUT _ingest/pipeline/documentos_pipeline
     - `requirements.txt`, `Dockerfile` : requerimentos do python e comando para rodar a página web_app.
 
 - Ambiente está estável, embora Docling consuma muitos recursos.
+
+18/09/2026
+
+# Reorganização do frontend (web_app.py)
+- Repositório migrado para o GitHub: [liperrf/rci-search](https://github.com/liperrf/rci-search).
+- Objetivo: remover acoplamentos com código desativado, centralizar configuração e separar o HTML que estava embutido em `web_app.py`.
+
+## Arquivos novos
+- `utils.py` : módulo compartilhado com funções utilitárias.
+  - `gerar_doc_id(caminho)` : gera um ID determinístico (SHA-256) a partir do caminho do arquivo, usado para indexar de forma idempotente. Antes vivia dentro de `indexardocs.py` (desativado) e era importado de lá pelo `web_app.py`; agora os dois módulos importam de `utils.py`.
+- `templates/base.html` : layout base (Jinja) com a fonte e a folha de estilos compartilhadas por todas as páginas.
+- `templates/index.html` : página de busca — estende `base.html`, extraída de `TEMPLATE` (antes uma string Python dentro de `web_app.py`).
+- `templates/ingest.html` : página de upload/ingestão — estende `base.html`, extraída de `INGEST_TEMPLATE`.
+- `static/style.css` : estilos da aplicação. Visual novo inspirado na página de busca do Google (logo e barra de pesquisa centralizadas na home, migrando para o topo quando há resultados), usando a paleta de cores da RCI (azul `#004FFE`, navy `#03143B`) e a fonte de títulos do site institucional (Atkinson Hyperlegible).
+
+## Arquivos alterados
+- `web_app.py` : não guarda mais HTML — as rotas (`/`, `/ingest`, `/download/<id>`) agora chamam `render_template(...)` apontando para `templates/`. Passa a importar `gerar_doc_id` de `utils.py` em vez de `indexardocs.py`.
+- `config.py` : nova variável `DOCLING_BASE_URL` (lida do `.env`, com o mesmo valor padrão que antes ficava hardcoded em `docling_service.py`).
+- `docling_service.py` : `processar_e_indexar_pdf` trocou uma assinatura genérica (`*args, **kwargs`) por parâmetros explícitos (`caminho_arquivo, doc_id=None, nome_indice=None`); passou a usar `config.DOCLING_BASE_URL` diretamente.
+- `indexardocs.py` (DESATIVADO) : `gerar_doc_id` foi removida de dentro do arquivo — agora importa de `utils.py`.
+- `requirements.txt` : removidas `fastapi` e `uvicorn` (não usadas, resquício de uma versão anterior do projeto); adicionada `requests` (usada por `docling_service.py`, mas não estava listada).
+
+- `opensearch_client.py`, `Dockerfile` : sem alterações.
