@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Adicionar documento — RCI Search{% endblock %}
+{% block content %}
+<div class="page is-results">
+  <header class="topbar">
+    <a href="/" class="brand">
+      <span class="brand-rci">RCI</span><span class="brand-search">Search</span>
+    </a>
+    <nav class="topnav">
+      <a href="/">Buscar</a>
+      <a href="/ingest" class="active">Adicionar documento</a>
+    </nav>
+  </header>
+
+  <main class="ingest-main">
+    <div class="ingest-card">
+      <h1>Adicionar documento</h1>
+      <p class="hint">PDF, DOCX, DOC, TXT, ODT ou RTF · até 50MB por arquivo</p>
+      <form method="post" enctype="multipart/form-data">
+        <input type="file" name="arquivos" accept=".pdf,.docx,.doc,.txt,.odt,.rtf" multiple required>
+        <button type="submit">Enviar e indexar</button>
+      </form>
+
+      {% if resultados %}
+        <div class="upload-results">
+          {% for r in resultados %}
+            <div class="upload-item {{ 'ok' if r.ok else 'falha' }}">
+              <span>{{ r.nome }}</span>
+              <span class="status">{{ 'Indexado ✓' if r.ok else r.mensagem }}</span>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </div>
+  </main>
+</div>
+{% endblock %}

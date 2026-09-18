@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}RCI Search{% endblock %}
+{% block content %}
+<div class="page {{ 'is-results' if q else 'is-home' }}">
+  <header class="topbar">
+    <a href="/" class="brand">
+      <span class="brand-rci">RCI</span><span class="brand-search">Search</span>
+    </a>
+    <nav class="topnav">
+      <a href="/" class="active">Buscar</a>
+      <a href="/ingest">Adicionar documento</a>
+    </nav>
+  </header>
+
+  {% if not q %}<div class="home-hero">
+    <a href="/" class="brand">
+      <span class="brand-rci">RCI</span><span class="brand-search">Search</span>
+    </a>
+  {% endif %}
+
+    <form method="get" action="/" class="search-form" role="search">
+      <div class="search-box">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="7"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <input type="text" name="q" value="{{ q }}" placeholder="Pesquisar documentos..." autofocus autocomplete="off">
+        {% if q %}<a class="clear" href="/" title="Limpar busca">&times;</a>{% endif %}
+      </div>
+      <button type="submit" class="search-btn">Buscar</button>
+    </form>
+
+  {% if not q %}</div>{% endif %}
+
+  {% if q %}
+  <main class="results-area">
+    {% if erro %}
+      <div class="alert alert-error">Erro ao consultar o OpenSearch: {{ erro }}</div>
+    {% endif %}
+
+    {% if not erro %}
+      <div class="results-meta">{{ total }} resultado(s) para "{{ q }}"</div>
+    {% endif %}
+
+    {% for r in resultados %}
+      <article class="result-card">
+        <h3><a href="/download/{{ r.id }}">{{ r.titulo or r.nome }}</a></h3>
+        <p class="snippet">{{ r.trecho|safe }}</p>
+        <div class="result-footer">
+          <span class="meta">{{ r.nome }} · {{ r.tipo }}</span>
+          <a class="download" href="/download/{{ r.id }}">Baixar original ↓</a>
+        </div>
+      </article>
+    {% endfor %}
+
+    {% if not resultados and not erro %}
+      <div class="empty">Nenhum documento encontrado para "{{ q }}".</div>
+    {% endif %}
+  </main>
+  {% endif %}
+</div>
+{% endblock %}

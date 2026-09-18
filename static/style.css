@@ -1,0 +1,312 @@
+/* RCI Search — paleta baseada em rciit.com (azul #004FFE, navy #03143B) */
+
+:root {
+  --rci-blue: #004ffe;
+  --rci-blue-dark: #0039c2;
+  --rci-navy: #03143b;
+  --rci-ink: #1a2333;
+  --rci-text-muted: #5f6b7a;
+  --rci-border: #e6e6e6;
+  --rci-bg: #ffffff;
+  --rci-bg-soft: #f5f7fc;
+  --rci-highlight: #d7e6ff;
+  --rci-error-bg: #fdeaea;
+  --rci-error-border: #f3b8b8;
+  --rci-error-text: #8a1f1f;
+  --rci-ok-bg: #e6f4ea;
+  --rci-ok-text: #1e5631;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--rci-bg);
+  color: var(--rci-ink);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+a { color: var(--rci-blue); }
+
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Topbar: marca + navegação, sempre no topo */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 32px;
+}
+
+.brand {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+  text-decoration: none;
+  font-family: "Atkinson Hyperlegible", Arial, sans-serif;
+  font-weight: 700;
+  font-size: 26px;
+  line-height: 1;
+}
+
+.brand-rci { color: var(--rci-navy); }
+.brand-search { color: var(--rci-blue); font-weight: 400; }
+
+.topnav {
+  display: flex;
+  gap: 6px;
+}
+
+.topnav a {
+  color: var(--rci-text-muted);
+  text-decoration: none;
+  font-size: 13.5px;
+  padding: 6px 12px;
+  border-radius: 6px;
+}
+
+.topnav a:hover { background: var(--rci-bg-soft); }
+
+.topnav a.active {
+  background: var(--rci-blue);
+  color: #fff;
+}
+
+/* Barra de busca — estilo Google */
+.search-form {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 560px;
+  padding: 0 18px;
+  height: 46px;
+  border: 1px solid var(--rci-border);
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(3, 20, 59, 0.04);
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.search-box:hover,
+.search-box:focus-within {
+  box-shadow: 0 2px 8px rgba(0, 79, 254, 0.15);
+  border-color: var(--rci-blue);
+}
+
+.search-box svg { flex: none; color: var(--rci-text-muted); }
+
+.search-box input[type="text"] {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 16px;
+  color: var(--rci-ink);
+  background: transparent;
+}
+
+.search-box .clear {
+  flex: none;
+  color: var(--rci-text-muted);
+  text-decoration: none;
+  font-size: 15px;
+  padding: 2px;
+}
+
+.search-btn {
+  flex: none;
+  height: 40px;
+  padding: 0 22px;
+  border: none;
+  border-radius: 20px;
+  background: var(--rci-blue);
+  color: #fff;
+  font-size: 14.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.search-btn:hover { background: var(--rci-blue-dark); }
+
+/* Home (sem query): tudo centralizado, como a home do Google */
+.page.is-home .topbar { position: absolute; top: 0; left: 0; right: 0; }
+.page.is-home .topbar .brand { display: none; }
+
+.home-hero {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  padding: 0 20px;
+}
+
+.home-hero .brand {
+  display: flex;
+  font-size: 52px;
+}
+
+.home-hero .search-form { max-width: 640px; }
+
+/* Resultados: layout com a barra fixa no topo */
+.page.is-results .topbar { border-bottom: 1px solid var(--rci-border); gap: 24px; }
+.page.is-results .search-form { justify-content: flex-start; }
+.page.is-results .search-box { max-width: 640px; }
+
+.results-area {
+  flex: 1;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px 20px 60px;
+}
+
+.results-meta {
+  color: var(--rci-text-muted);
+  font-size: 13.5px;
+  margin-bottom: 18px;
+}
+
+.result-card {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--rci-border);
+}
+
+.result-card h3 {
+  margin: 0 0 4px 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.result-card h3 a { color: var(--rci-navy); text-decoration: none; }
+.result-card h3 a:hover { text-decoration: underline; }
+
+.result-card .snippet {
+  margin: 0 0 8px 0;
+  color: var(--rci-ink);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.result-card .snippet em {
+  background: var(--rci-highlight);
+  font-style: normal;
+  border-radius: 2px;
+}
+
+.result-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12.5px;
+  color: var(--rci-text-muted);
+}
+
+.result-footer .download {
+  color: var(--rci-blue);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.result-footer .download:hover { text-decoration: underline; }
+
+.tagline,
+.empty {
+  text-align: center;
+  color: var(--rci-text-muted);
+  margin-top: 24px;
+  font-size: 14px;
+}
+
+.alert {
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 18px;
+  font-size: 14px;
+}
+
+.alert-error {
+  background: var(--rci-error-bg);
+  border: 1px solid var(--rci-error-border);
+  color: var(--rci-error-text);
+}
+
+/* Página de ingestão */
+.ingest-main {
+  flex: 1;
+  max-width: 560px;
+  width: 100%;
+  margin: 40px auto;
+  padding: 0 20px;
+}
+
+.ingest-card {
+  background: var(--rci-bg-soft);
+  border: 1px solid var(--rci-border);
+  border-radius: 14px;
+  padding: 32px 28px;
+  text-align: center;
+}
+
+.ingest-card h1 {
+  margin: 0 0 6px 0;
+  font-size: 20px;
+  color: var(--rci-navy);
+  font-family: "Atkinson Hyperlegible", Arial, sans-serif;
+}
+
+.ingest-card p.hint {
+  margin: 0 0 20px 0;
+  color: var(--rci-text-muted);
+  font-size: 13px;
+}
+
+.ingest-card input[type="file"] {
+  display: block;
+  width: 100%;
+  margin-bottom: 18px;
+  font-size: 13.5px;
+}
+
+.ingest-card button {
+  padding: 11px 26px;
+  border: none;
+  border-radius: 20px;
+  background: var(--rci-blue);
+  color: #fff;
+  font-size: 14.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ingest-card button:hover { background: var(--rci-blue-dark); }
+
+.upload-results { margin-top: 22px; text-align: left; }
+
+.upload-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  font-size: 13.5px;
+}
+
+.upload-item.ok { background: var(--rci-ok-bg); color: var(--rci-ok-text); }
+.upload-item.falha { background: var(--rci-error-bg); color: var(--rci-error-text); }
+.upload-item .status { font-weight: 600; font-size: 12px; }
