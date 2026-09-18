@@ -134,7 +134,10 @@ def ingest():
                 continue
 
             try:
-                destino = Path(config.PASTA_ORIGEM) / nome_seguro
+                pasta_destino = Path(config.PASTA_ORIGEM)
+                pasta_destino.mkdir(parents=True, exist_ok=True)
+
+                destino = pasta_destino / nome_seguro
                 arquivo.save(destino)
 
                 doc_id = gerar_doc_id(str(destino))
