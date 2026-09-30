@@ -27,6 +27,12 @@ app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # limite de 50 MB por uploa
 cliente = OpenSearchClient()
 
 
+@app.errorhandler(404)
+def nao_encontrado(e):
+    mensagem = e.description or "A página ou o documento solicitado não foi encontrado."
+    return render_template("erro.html", titulo="Não encontrado", mensagem=mensagem), 404
+
+
 @app.route("/")
 def index():
     q = request.args.get("q", "").strip()
@@ -162,7 +168,7 @@ def download(doc_id):
 
     caminho = doc["_source"].get("caminho")
     if not caminho or not os.path.isfile(caminho):
-        abort(404, "Arquivo não encontrado no caminho de origem.")
+        abort(404, "O arquivo original não está mais disponível no servidor.")
 
     return send_file(caminho, as_attachment=True, download_name=os.path.basename(caminho))
 
@@ -189,14 +195,19 @@ def preview(doc_id):
 @app.route("/arquivo/<doc_id>")
 def arquivo(doc_id):
     """Serve o arquivo original inline (sem forçar download), usado pelo
-    preview para exibir PDFs/imagens direto no navegador."""
+    preview para exibir PDFs/imagens direto no navegador. Como essa rota
+    é carregada dentro de um <iframe>, o erro é uma página mínima (sem o
+    topbar do site) em vez da página de erro completa."""
     doc = cliente.get(config.INDEX_NAME, doc_id)
     if doc is None:
-        abort(404, "Documento não encontrado no índice.")
+        return render_template("preview_erro.html", mensagem="Documento não encontrado no índice."), 404
 
     caminho = doc["_source"].get("caminho")
     if not caminho or not os.path.isfile(caminho):
-        abort(404, "Arquivo não encontrado no caminho de origem.")
+        return render_template(
+            "preview_erro.html",
+            mensagem="O arquivo original não está mais disponível no servidor.",
+        ), 404
 
     return send_file(caminho, as_attachment=False)
 

@@ -419,3 +419,58 @@ a { color: var(--rci-blue); }
   max-height: 60vh;
   overflow-y: auto;
 }
+
+/* Página de erro (404 etc.) */
+.erro-area {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+}
+
+.erro-card {
+  max-width: 420px;
+  text-align: center;
+}
+
+.erro-card h1 {
+  margin: 0 0 10px 0;
+  font-size: 20px;
+  color: var(--rci-navy);
+}
+
+.erro-card p {
+  margin: 0 0 20px 0;
+  color: var(--rci-text-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.erro-card .voltar-btn {
+  display: inline-block;
+  color: var(--rci-blue);
+  font-weight: 600;
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.erro-card .voltar-btn:hover { text-decoration: underline; }
+
+/* Mensagem de erro mínima exibida dentro do <iframe> do preview */
+.embed-erro {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  margin: 0;
+  font-family: Arial, Helvetica, sans-serif;
+  background: var(--rci-bg-soft);
+}
+
+.embed-erro p {
+  color: var(--rci-text-muted);
+  font-size: 14px;
+  padding: 0 24px;
+  text-align: center;
+}
