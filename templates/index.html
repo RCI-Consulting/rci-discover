@@ -44,11 +44,14 @@
 
     {% for r in resultados %}
       <article class="result-card">
-        <h3><a href="/download/{{ r.id }}">{{ r.titulo or r.nome }}</a></h3>
+        <h3><a href="/preview/{{ r.id }}">{{ r.titulo or r.nome }}</a></h3>
         <p class="snippet">{{ r.trecho|safe }}</p>
         <div class="result-footer">
           <span class="meta">{{ r.nome }} · {{ r.tipo }}</span>
-          <a class="download" href="/download/{{ r.id }}">Baixar original ↓</a>
+          <span class="acoes">
+            <a class="preview-link" href="/preview/{{ r.id }}">Visualizar</a>
+            <a class="download" href="/download/{{ r.id }}">Baixar original ↓</a>
+          </span>
         </div>
       </article>
     {% endfor %}

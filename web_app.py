@@ -19,7 +19,7 @@ from werkzeug.utils import secure_filename
 
 import config
 from opensearch_client import OpenSearchClient
-from utils import gerar_doc_id
+from utils import extensao, gerar_doc_id, pode_embutir
 from docling_service import processar_e_indexar_pdf
 
 app = Flask(__name__)
@@ -102,11 +102,13 @@ def index():
 
             trecho = highlight or (conteudo_bruto[:220] + "..." if len(conteudo_bruto) > 220 else conteudo_bruto)
 
+            nome = fonte.get("nome", "(sem nome)")
+
             resultados.append({
                 "id": hit["_id"],
-                "nome": fonte.get("nome", "(sem nome)"),
-                "titulo": fonte.get("nome"),
-                "tipo": "PDF Document",
+                "nome": nome,
+                "titulo": nome,
+                "tipo": extensao(nome).upper() or "Documento",
                 "trecho": trecho or "(Sem prévia de texto)",
             })
 
@@ -163,6 +165,40 @@ def download(doc_id):
         abort(404, "Arquivo não encontrado no caminho de origem.")
 
     return send_file(caminho, as_attachment=True, download_name=os.path.basename(caminho))
+
+
+@app.route("/preview/<doc_id>")
+def preview(doc_id):
+    doc = cliente.get(config.INDEX_NAME, doc_id)
+    if doc is None:
+        abort(404, "Documento não encontrado no índice.")
+
+    fonte = doc["_source"]
+    nome = fonte.get("nome", "(sem nome)")
+
+    return render_template(
+        "preview.html",
+        doc_id=doc_id,
+        nome=nome,
+        tipo=extensao(nome).upper() or "Documento",
+        conteudo=fonte.get("conteudo", ""),
+        pode_embutir=pode_embutir(nome),
+    )
+
+
+@app.route("/arquivo/<doc_id>")
+def arquivo(doc_id):
+    """Serve o arquivo original inline (sem forçar download), usado pelo
+    preview para exibir PDFs/imagens direto no navegador."""
+    doc = cliente.get(config.INDEX_NAME, doc_id)
+    if doc is None:
+        abort(404, "Documento não encontrado no índice.")
+
+    caminho = doc["_source"].get("caminho")
+    if not caminho or not os.path.isfile(caminho):
+        abort(404, "Arquivo não encontrado no caminho de origem.")
+
+    return send_file(caminho, as_attachment=False)
 
 
 if __name__ == "__main__":
