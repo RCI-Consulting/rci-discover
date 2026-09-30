@@ -128,3 +128,18 @@ PUT _ingest/pipeline/documentos_pipeline
 - `utils.py` : novas funções `extensao(nome)` e `pode_embutir(nome)` (extensões que o navegador exibe nativamente: pdf/jpg/jpeg/png).
 - `templates/index.html` : card de resultado ganhou o link "Visualizar"; o título do card também passou a apontar para o preview em vez do download direto.
 - `static/style.css` : estilos da página de preview e do novo link "Visualizar".
+
+30/09/2026 (2)
+
+# Páginas de erro amigáveis
+- Motivo: um documento indexado antes de um redeploy apontava pra um arquivo que não existia mais (`PASTA_ORIGEM` não tem volume persistente no Dokploy ainda — ver seção de infraestrutura a resolver), e o erro aparecia como a página padrão crua do Flask/Werkzeug, sem o visual do site.
+- `/download/<id>` e `/preview/<id>` : erros 404 (documento não encontrado no índice, ou arquivo ausente no servidor) agora renderizam uma página de erro com o visual do site, com um link "Voltar à busca".
+- `/arquivo/<id>` : como essa rota só é usada como origem de um `<iframe>` dentro do preview, o erro é uma mensagem mínima e centralizada (sem o topbar do site), pra não duplicar a navegação dentro do iframe.
+
+## Arquivos novos
+- `templates/erro.html` : página de erro completa (com topbar), usada pelo `@app.errorhandler(404)`.
+- `templates/preview_erro.html` : mensagem de erro mínima, usada só dentro do `<iframe>` da rota `/arquivo/<id>`.
+
+## Arquivos alterados
+- `web_app.py` : adiciona `@app.errorhandler(404)` global; `/arquivo/<id>` passou a renderizar `preview_erro.html` em vez de `abort(404, ...)`.
+- `static/style.css` : estilos das duas páginas de erro.

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}{{ titulo }} — RCI Search{% endblock %}
+{% block content %}
+<div class="page is-results">
+  <header class="topbar">
+    <a href="/" class="brand">
+      <span class="brand-rci">RCI</span><span class="brand-search">Search</span>
+    </a>
+    <nav class="topnav">
+      <a href="/">Buscar</a>
+      <a href="/ingest">Adicionar documento</a>
+    </nav>
+  </header>
+
+  <main class="erro-area">
+    <div class="erro-card">
+      <h1>{{ titulo }}</h1>
+      <p>{{ mensagem }}</p>
+      <a href="/" class="voltar-btn">&larr; Voltar à busca</a>
+    </div>
+  </main>
+</div>
+{% endblock %}
