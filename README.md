@@ -112,3 +112,19 @@ PUT _ingest/pipeline/documentos_pipeline
 - `requirements.txt` : removidas `fastapi` e `uvicorn` (não usadas, resquício de uma versão anterior do projeto); adicionada `requests` (usada por `docling_service.py`, mas não estava listada).
 
 - `opensearch_client.py`, `Dockerfile` : sem alterações.
+
+30/09/2026
+
+# Preview inline do documento
+- Nos resultados de busca, cada documento agora tem um link **"Visualizar"** além do "Baixar original", que abre uma página de preview em vez de forçar o download.
+- PDFs e imagens (`.jpg`, `.jpeg`, `.png`) são exibidos direto no navegador (embutidos num `<iframe>`); os demais formatos (`.docx`, `.doc`, `.odt`, `.rtf`, `.txt`) mostram o texto já extraído pelo Docling durante a indexação, já que o navegador não consegue renderizá-los nativamente.
+- Corrigido também um bug existente: o campo "tipo" dos resultados estava fixo em "PDF Document" para qualquer arquivo — agora é derivado da extensão real (`PDF`, `DOCX`, `TXT`, etc.).
+
+## Arquivos novos
+- `templates/preview.html` : página de preview — título do documento, botão de download, `<iframe>` (quando aplicável) e o texto extraído num bloco colapsável (`<details>`).
+
+## Arquivos alterados
+- `web_app.py` : novas rotas `/preview/<id>` (renderiza `preview.html`) e `/arquivo/<id>` (serve o arquivo original com `Content-Disposition: inline`, usado como origem do `<iframe>`). O "tipo" do resultado da busca passou a usar `utils.extensao(...)` em vez do valor fixo.
+- `utils.py` : novas funções `extensao(nome)` e `pode_embutir(nome)` (extensões que o navegador exibe nativamente: pdf/jpg/jpeg/png).
+- `templates/index.html` : card de resultado ganhou o link "Visualizar"; o título do card também passou a apontar para o preview em vez do download direto.
+- `static/style.css` : estilos da página de preview e do novo link "Visualizar".
