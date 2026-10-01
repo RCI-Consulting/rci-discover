@@ -2,3 +2,4 @@ opensearch-py
 python-dotenv
 flask
 requests
+markdown

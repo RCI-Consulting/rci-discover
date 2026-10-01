@@ -19,7 +19,7 @@ from werkzeug.utils import secure_filename
 
 import config
 from opensearch_client import OpenSearchClient
-from utils import extensao, gerar_doc_id, pode_embutir
+from utils import extensao, gerar_doc_id, pode_embutir, renderizar_markdown
 from docling_service import processar_e_indexar_pdf
 
 app = Flask(__name__)
@@ -187,7 +187,7 @@ def preview(doc_id):
         doc_id=doc_id,
         nome=nome,
         tipo=extensao(nome).upper() or "Documento",
-        conteudo=fonte.get("conteudo", ""),
+        conteudo_html=renderizar_markdown(fonte.get("conteudo", "")),
         pode_embutir=pode_embutir(nome),
     )
 

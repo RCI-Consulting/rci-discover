@@ -143,3 +143,17 @@ PUT _ingest/pipeline/documentos_pipeline
 ## Arquivos alterados
 - `web_app.py` : adiciona `@app.errorhandler(404)` global; `/arquivo/<id>` passou a renderizar `preview_erro.html` em vez de `abort(404, ...)`.
 - `static/style.css` : estilos das duas páginas de erro.
+
+01/10/2026
+
+# Remove imagens em base64 do texto extraído pelo Docling
+- Motivo: o Docling embute imagens (ex: logos, headers dos documentos) direto no markdown exportado como `![Image](data:image/png;base64,...)`. Cada imagem gera dezenas de KB de texto em base64, que não é pesquisável e aparecia como lixo visual no "Texto extraído" do preview.
+- `docling_service.py` : `extrair_texto_docling` agora remove esses blocos de imagem em base64 antes de indexar, substituindo por `[imagem]`.
+- **Pendência**: documentos já indexados antes dessa mudança continuam com o base64 salvo no OpenSearch — é preciso reindexar (reenviar) esses documentos específicos pra limpar o conteúdo já salvo. A mudança só afeta uploads novos a partir de agora.
+
+# Renderiza o Markdown extraído como HTML no preview
+- Motivo: o texto extraído pelo Docling já é Markdown (títulos, tabelas, negrito), mas aparecia como texto puro (com `#`, `##`, `|` literais) num bloco `<pre>` — isso afeta sobretudo documentos sem preview visual (`.docx`, `.doc`, `.odt`, `.rtf`, `.txt`), onde o texto extraído é a única coisa exibida.
+- `utils.py` : nova função `renderizar_markdown(texto)` — escapa o HTML do texto original antes de converter pra Markdown (`html.escape` + biblioteca `markdown`), evitando que uma tag HTML literal dentro do documento original seja executada pelo navegador (XSS armazenado). Testado com um trecho contendo `<script>` — o texto aparece escapado, não executa.
+- `web_app.py` : rota `/preview/<id>` passa a renderizar o Markdown (`conteudo_html`) em vez do texto cru.
+- `templates/preview.html`, `static/style.css` : bloco de texto extraído agora é HTML formatado (`.markdown-body`) em vez de `<pre>` — títulos, tabelas, listas e negrito com o visual do site.
+- `requirements.txt` : adicionada a dependência `markdown`.
