@@ -32,7 +32,11 @@
 
     <details class="preview-texto" {{ "" if pode_embutir else "open" }}>
       <summary>Texto extraído do documento</summary>
-      <pre>{{ conteudo or "(Sem texto extraído para este documento.)" }}</pre>
+      {% if conteudo_html %}
+        <div class="markdown-body">{{ conteudo_html|safe }}</div>
+      {% else %}
+        <p class="markdown-vazio">(Sem texto extraído para este documento.)</p>
+      {% endif %}
     </details>
   </main>
 </div>
