@@ -54,8 +54,8 @@ a { color: var(--rci-blue); }
   line-height: 1;
 }
 
-.brand-rci { color: var(--rci-navy); }
-.brand-search { color: var(--rci-blue); font-weight: 400; }
+.brand-rci { color: var(--rci-blue); }
+.brand-search { color: var(--rci-navy); font-weight: 400; }
 
 .topnav {
   display: flex;
