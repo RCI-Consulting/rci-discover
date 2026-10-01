@@ -143,3 +143,10 @@ PUT _ingest/pipeline/documentos_pipeline
 ## Arquivos alterados
 - `web_app.py` : adiciona `@app.errorhandler(404)` global; `/arquivo/<id>` passou a renderizar `preview_erro.html` em vez de `abort(404, ...)`.
 - `static/style.css` : estilos das duas páginas de erro.
+
+01/10/2026
+
+# Remove imagens em base64 do texto extraído pelo Docling
+- Motivo: o Docling embute imagens (ex: logos, headers dos documentos) direto no markdown exportado como `![Image](data:image/png;base64,...)`. Cada imagem gera dezenas de KB de texto em base64, que não é pesquisável e aparecia como lixo visual no "Texto extraído" do preview.
+- `docling_service.py` : `extrair_texto_docling` agora remove esses blocos de imagem em base64 antes de indexar, substituindo por `[imagem]`.
+- **Pendência**: documentos já indexados antes dessa mudança continuam com o base64 salvo no OpenSearch — é preciso reindexar (reenviar) esses documentos específicos pra limpar o conteúdo já salvo. A mudança só afeta uploads novos a partir de agora.

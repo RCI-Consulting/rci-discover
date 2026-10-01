@@ -1,11 +1,24 @@
 import mimetypes
 import os
+import re
 import requests
 import config
 
 from opensearch_client import OpenSearchClient
 
 BASE_DOCLING_URL = config.DOCLING_BASE_URL.rstrip("/")
+
+# O Docling embute imagens como `![Image](data:image/png;base64,...)` direto
+# no markdown exportado. Isso não é pesquisável e infla o índice em dezenas
+# de KB por imagem, então removemos antes de indexar/exibir.
+_PADRAO_IMAGEM_BASE64 = re.compile(
+    r"!\[[^\]]*\]\(data:image/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=\s]+\)",
+    re.DOTALL,
+)
+
+
+def _remover_imagens_base64(texto: str) -> str:
+    return _PADRAO_IMAGEM_BASE64.sub("[imagem]", texto)
 
 
 def extrair_texto_docling(caminho_arquivo: str) -> str:
@@ -79,7 +92,7 @@ def extrair_texto_docling(caminho_arquivo: str) -> str:
                                 paginas.append(str(el["text"]))
                 texto = "\n".join(paginas)
 
-    texto = str(texto).strip()
+    texto = _remover_imagens_base64(str(texto)).strip()
 
     print(f"=== TEXTO EXTRAÍDO ({nome_arquivo}) ===")
     print(f"Tamanho: {len(texto)} caracteres")
