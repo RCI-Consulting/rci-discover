@@ -1,0 +1,11 @@
+<header class="topbar">
+  <a href="/" class="brand">
+    <span class="brand-rci">RCI</span><span class="brand-search">Search</span>
+  </a>
+  <nav class="topnav">
+    <a href="/"{% if ativo == 'buscar' %} class="active"{% endif %}>Buscar</a>
+    <a href="/ingest"{% if ativo == 'ingest' %} class="active"{% endif %}>Adicionar documento</a>
+    <a href="/fila"{% if ativo == 'fila' %} class="active"{% endif %}>Fila</a>
+    <a href="/indices"{% if ativo == 'indices' %} class="active"{% endif %}>Índices</a>
+  </nav>
+</header>

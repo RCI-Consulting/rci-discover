@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Apagar índice — RCI Search{% endblock %}
+{% block content %}
+<div class="page is-results">
+  {% set ativo = 'indices' %}
+  {% include '_topbar.html' %}
+
+  <main class="erro-area">
+    <div class="erro-card">
+      <h1>Apagar o índice "{{ exibicao }}"?</h1>
+      <p>
+        Isso remove <strong>{{ docs }}</strong> documento(s) da busca e não pode ser desfeito.
+        Os arquivos originais continuam guardados no servidor, mas só voltam a ser pesquisáveis
+        se forem enviados de novo.
+      </p>
+      {% if erro %}<div class="alert alert-error">{{ erro }}</div>{% endif %}
+      <form method="post" class="form-confirma">
+        <label>Para confirmar, digite o nome do índice: <code>{{ exibicao }}</code></label>
+        <input type="text" name="confirmacao" autocomplete="off" required>
+        <button type="submit" class="btn-perigo">Apagar índice</button>
+        <a href="/indices" class="voltar-btn">Cancelar</a>
+      </form>
+    </div>
+  </main>
+</div>
+{% endblock %}

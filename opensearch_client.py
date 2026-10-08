@@ -15,8 +15,8 @@ class OpenSearchClient:
             ssl_show_warn=False,
         )
 
-    def search(self, index, query):
-        return self.client.search(index=index, body=query)
+    def search(self, index, query, **kwargs):
+        return self.client.search(index=index, body=query, **kwargs)
 
     def index(self, index, body, doc_id=None, pipeline=None):
         """Indexa um único documento. Se doc_id for informado, o
@@ -52,3 +52,19 @@ class OpenSearchClient:
             raise_on_error=raise_on_error,
             stats_only=False,
         )
+
+    def criar_indice(self, index, body):
+        return self.client.indices.create(index=index, body=body)
+
+    def apagar_indice(self, index):
+        return self.client.indices.delete(index=index)
+
+    def listar_indices(self, padrao):
+        """Resumo (nome, docs, tamanho, saúde) dos índices que casam com
+        `padrao` (aceita lista separada por vírgula e curingas)."""
+        return self.client.cat.indices(
+            index=padrao,
+            format="json",
+            h="index,docs.count,store.size,health,status",
+        )
+

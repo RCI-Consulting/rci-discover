@@ -2,31 +2,24 @@
 {% block title %}{{ nome }} — RCI Search{% endblock %}
 {% block content %}
 <div class="page is-results">
-  <header class="topbar">
-    <a href="/" class="brand">
-      <span class="brand-rci">RCI</span><span class="brand-search">Search</span>
-    </a>
-    <nav class="topnav">
-      <a href="/">Buscar</a>
-      <a href="/ingest">Adicionar documento</a>
-    </nav>
-  </header>
+  {% set ativo = 'buscar' %}
+  {% include '_topbar.html' %}
 
   <main class="preview-area">
     <div class="preview-header">
       <div>
         <h1>{{ nome }}</h1>
-        <span class="preview-tipo">{{ tipo }}</span>
+        <span class="preview-tipo">{{ tipo }}</span> <span class="tag-indice">{{ indice_nome }}</span>
       </div>
       <div class="preview-actions">
         <a href="/" class="voltar">&larr; Voltar à busca</a>
-        <a href="/download/{{ doc_id }}" class="download-btn">Baixar original ↓</a>
+        <a href="/download/{{ indice }}/{{ doc_id }}" class="download-btn">Baixar original ↓</a>
       </div>
     </div>
 
     {% if pode_embutir %}
       <div class="preview-embed">
-        <iframe src="/arquivo/{{ doc_id }}" title="{{ nome }}"></iframe>
+        <iframe src="/arquivo/{{ indice }}/{{ doc_id }}" title="{{ nome }}"></iframe>
       </div>
     {% endif %}
 

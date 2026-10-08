@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Índices — RCI Search{% endblock %}
+{% block content %}
+<div class="page is-results">
+  {% set ativo = 'indices' %}
+  {% include '_topbar.html' %}
+
+  <main class="tabela-area">
+    <h1>Índices</h1>
+    <p class="hint">Cada índice é uma coleção separada de documentos. A busca varre todos eles.</p>
+
+    {% if erro %}
+      <div class="alert alert-error">{{ erro }}</div>
+    {% endif %}
+    {% if sucesso %}
+      <div class="alert alert-ok">{{ sucesso }}</div>
+    {% endif %}
+
+    <form method="post" action="/indices" class="form-linha">
+      <input type="text" name="nome" placeholder="nome-do-novo-indice" value="{{ nome_digitado or '' }}"
+             pattern="[a-z0-9][a-z0-9_-]{1,49}" required>
+      <button type="submit">Criar índice</button>
+    </form>
+    <p class="hint">Letras minúsculas, números, hífen e underline (2 a 50 caracteres). O prefixo <code>{{ prefixo }}</code> é adicionado automaticamente.</p>
+
+    {% if indices %}
+      <table class="tabela">
+        <thead>
+          <tr><th>Índice</th><th>Documentos</th><th>Tamanho</th><th>Saúde</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for i in indices %}
+            <tr>
+              <td><strong>{{ i.exibicao }}</strong>
+                {% if i.padrao %}<span class="hint"> · padrão</span>{% endif %}
+              </td>
+              <td>{{ i.docs }}</td>
+              <td>{{ i.tamanho }}</td>
+              <td><span class="badge badge-saude-{{ i.saude }}">{{ i.saude }}</span></td>
+              <td>
+                {% if not i.padrao %}
+                  <a class="link-perigo" href="/indices/{{ i.nome }}/apagar">Apagar</a>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% elif not erro %}
+      <div class="empty">Nenhum índice ainda. Crie o primeiro acima.</div>
+    {% endif %}
+  </main>
+</div>
+{% endblock %}

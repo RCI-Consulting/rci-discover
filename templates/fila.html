@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Fila de indexação — RCI Search{% endblock %}
+{% block head_extra %}{% if ativos %}<meta http-equiv="refresh" content="5">{% endif %}{% endblock %}
+{% block content %}
+<div class="page is-results">
+  {% set ativo = 'fila' %}
+  {% include '_topbar.html' %}
+
+  <main class="tabela-area">
+    <div class="tabela-header">
+      <div>
+        <h1>Fila de indexação</h1>
+        <p class="hint">
+          {% if ativos %}Atualizando a cada 5 segundos · {% endif %}
+          {{ contagem.get('fila', 0) }} na fila · {{ contagem.get('processando', 0) }} processando ·
+          {{ contagem.get('concluido', 0) }} concluídos · {{ contagem.get('erro', 0) }} com erro
+        </p>
+      </div>
+      {% if contagem.get('concluido') %}
+        <form method="post" action="/fila/limpar">
+          <button type="submit" class="btn-sec">Limpar concluídos</button>
+        </form>
+      {% endif %}
+    </div>
+
+    {% if erro %}
+      <div class="alert alert-error">{{ erro }}</div>
+    {% endif %}
+
+    {% if jobs %}
+      <table class="tabela">
+        <thead>
+          <tr><th>Arquivo</th><th>Índice</th><th>Status</th><th>Enviado em</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for j in jobs %}
+            <tr>
+              <td>{{ j.nome_arquivo }}
+                {% if j.mensagem %}<div class="msg-job">{{ j.mensagem }}</div>{% endif %}
+              </td>
+              <td><span class="tag-indice">{{ j.indice_nome }}</span></td>
+              <td><span class="badge badge-{{ j.status }}">{{ j.status_texto }}</span>
+                {% if j.tentativas > 1 %}<span class="hint"> · tentativa {{ j.tentativas }}</span>{% endif %}
+              </td>
+              <td>{{ j.criado_local.strftime('%d/%m %H:%M:%S') }}</td>
+              <td>
+                {% if j.status == 'erro' %}
+                  <form method="post" action="/fila/{{ j.id }}/repetir">
+                    <button type="submit" class="btn-sec">Tentar novamente</button>
+                  </form>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% elif not erro %}
+      <div class="empty">Nenhum documento na fila. <a href="/ingest">Adicionar documento</a></div>
+    {% endif %}
+  </main>
+</div>
+{% endblock %}

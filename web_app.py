@@ -1,8 +1,9 @@
 """
-Frontend básico (Flask) para testar buscas no índice `documentos` do OpenSearch.
+Frontend (Flask) do RCI Search: busca em todos os índices do OpenSearch,
+upload com indexação em segundo plano (fila no MySQL) e gestão de índices.
 
 Uso:
-    pip install flask
+    pip install -r requirements.txt
     python web_app.py
 
 Depois acesse http://localhost:5000 no navegador.
@@ -12,19 +13,60 @@ OpenSearch (evita expor usuário/senha do cluster no front-end).
 """
 
 import os
-from pathlib import Path
+from datetime import timedelta
 
-from flask import Flask, abort, render_template, request, send_file
+from flask import Flask, abort, redirect, render_template, request, send_file
+from opensearchpy.exceptions import RequestError
 from werkzeug.utils import secure_filename
 
 import config
+import indices
+import jobs
+import worker
 from opensearch_client import OpenSearchClient
 from utils import extensao, gerar_doc_id, pode_embutir, renderizar_markdown
-from docling_service import processar_e_indexar_pdf
+
+MODO_DEBUG = True
 
 app = Flask(__name__)
-app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # limite de 50 MB por upload
+app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # limite de 50 MB por envio
 cliente = OpenSearchClient()
+
+STATUS_TEXTO = {
+    "fila": "Na fila",
+    "processando": "Processando",
+    "concluido": "Concluído",
+    "erro": "Erro",
+}
+
+
+def _listar_indices():
+    """Índices gerenciados que existem no OpenSearch (padrão primeiro)."""
+    linhas = cliente.listar_indices(indices.padrao_listagem())
+    resultado = []
+    for linha in linhas:
+        nome = linha.get("index", "")
+        if not indices.eh_gerenciado(nome):
+            continue
+        resultado.append({
+            "nome": nome,
+            "exibicao": indices.nome_exibicao(nome),
+            "docs": linha.get("docs.count") or 0,
+            "tamanho": linha.get("store.size") or "0b",
+            "saude": linha.get("health") or "-",
+            "padrao": nome == config.INDEX_NAME,
+        })
+    resultado.sort(key=lambda i: (not i["padrao"], i["nome"]))
+    return resultado
+
+
+def _documento(indice, doc_id):
+    """Busca um documento num índice gerenciado. Retorna (indice, doc) ou
+    (None, None). O índice vem da URL, então nunca confiamos nele sem checar."""
+    indice = indice or config.INDEX_NAME
+    if not indices.eh_gerenciado(indice):
+        return None, None
+    return indice, cliente.get(indice, doc_id)
 
 
 @app.errorhandler(404)
@@ -81,42 +123,30 @@ def index():
                 },
                 "_source": ["nome", "caminho", "conteudo"],
             }
-        else:
-            # Quando 'q' estiver vazio, executa match_all ordenado pelos últimos adicionados
-            body = {
-                "size": 20,
-                "query": {
-                    "match_all": {}
-                },
-                "sort": [
-                    {
-                        "_doc": "desc"
-                    }
-                ],
-                "_source": ["nome", "caminho", "conteudo"],
-            }
 
-        resp = cliente.search(config.INDEX_NAME, body)
-        total = resp["hits"]["total"]["value"]
+            resp = cliente.search(indices.padrao_busca(), body, ignore_unavailable=True)
+            total = resp["hits"]["total"]["value"]
 
-        for hit in resp["hits"]["hits"]:
-            fonte = hit["_source"]
+            for hit in resp["hits"]["hits"]:
+                fonte = hit["_source"]
 
-            # Se for busca filtrada com highlight, pega o destaque. Senão, corta os 220 primeiros caracteres
-            highlight = hit.get("highlight", {}).get("conteudo", [None])[0] if q else None
-            conteudo_bruto = fonte.get("conteudo", "")
+                # Se for busca filtrada com highlight, pega o destaque. Senão, corta os 220 primeiros caracteres
+                highlight = hit.get("highlight", {}).get("conteudo", [None])[0]
+                conteudo_bruto = fonte.get("conteudo", "")
 
-            trecho = highlight or (conteudo_bruto[:220] + "..." if len(conteudo_bruto) > 220 else conteudo_bruto)
+                trecho = highlight or (conteudo_bruto[:220] + "..." if len(conteudo_bruto) > 220 else conteudo_bruto)
 
-            nome = fonte.get("nome", "(sem nome)")
+                nome = fonte.get("nome", "(sem nome)")
 
-            resultados.append({
-                "id": hit["_id"],
-                "nome": nome,
-                "titulo": nome,
-                "tipo": extensao(nome).upper() or "Documento",
-                "trecho": trecho or "(Sem prévia de texto)",
-            })
+                resultados.append({
+                    "id": hit["_id"],
+                    "indice": hit["_index"],
+                    "indice_nome": indices.nome_exibicao(hit["_index"]),
+                    "nome": nome,
+                    "titulo": nome,
+                    "tipo": extensao(nome).upper() or "Documento",
+                    "trecho": trecho or "(Sem prévia de texto)",
+                })
 
     except Exception as e:
         erro = str(e)
@@ -127,42 +157,182 @@ def index():
 @app.route("/ingest", methods=["GET", "POST"])
 def ingest():
     resultados = []
+    erro = None
+    disponiveis = []
+
+    try:
+        disponiveis = _listar_indices()
+    except Exception as e:
+        erro = f"Não consegui listar os índices no OpenSearch: {e}"
+
+    nomes = {i["nome"] for i in disponiveis}
+    indice_selecionado = request.form.get("indice") or (
+        config.INDEX_NAME if config.INDEX_NAME in nomes else (disponiveis[0]["nome"] if disponiveis else "")
+    )
+
+    if request.method == "POST" and not erro:
+        if indice_selecionado not in nomes:
+            erro = "Escolha um índice válido."
+        else:
+            for arquivo in request.files.getlist("arquivos"):
+                if not arquivo or not arquivo.filename:
+                    continue
+
+                nome_seguro = secure_filename(arquivo.filename)
+
+                if not nome_seguro.lower().endswith(tuple(config.EXTENSOES_VALIDAS)):
+                    resultados.append({"nome": arquivo.filename, "ok": False, "mensagem": "Extensão não permitida"})
+                    continue
+
+                try:
+                    pasta_destino = indices.pasta_do_indice(indice_selecionado)
+                    destino = pasta_destino / nome_seguro
+                    doc_id = gerar_doc_id(str(destino))
+
+                    if jobs.job_ativo(indice_selecionado, doc_id):
+                        resultados.append({
+                            "nome": nome_seguro, "ok": False,
+                            "mensagem": "Já está na fila ou sendo processado",
+                        })
+                        continue
+
+                    pasta_destino.mkdir(parents=True, exist_ok=True)
+                    arquivo.save(destino)
+                    jobs.enfileirar(indice_selecionado, nome_seguro, destino, doc_id)
+
+                    resultados.append({"nome": nome_seguro, "ok": True, "mensagem": ""})
+
+                except Exception as e:
+                    resultados.append({"nome": arquivo.filename, "ok": False, "mensagem": f"Falha ao enfileirar: {e}"})
+
+    return render_template(
+        "ingest.html",
+        resultados=resultados,
+        erro=erro,
+        indices=disponiveis,
+        indice_selecionado=indice_selecionado,
+    )
+
+
+@app.route("/fila")
+def fila():
+    erro = None
+    lista = []
+    contagem = {}
+
+    try:
+        contagem = jobs.contagem_por_status()
+        lista = jobs.listar(100)
+        for job in lista:
+            job["indice_nome"] = indices.nome_exibicao(job["indice"])
+            job["status_texto"] = STATUS_TEXTO.get(job["status"], job["status"])
+            job["criado_local"] = job["criado_em"] + timedelta(hours=config.FUSO_HORAS)
+    except Exception as e:
+        erro = f"Banco de dados da fila indisponível: {e}"
+
+    ativos = contagem.get("fila", 0) + contagem.get("processando", 0) > 0
+    return render_template("fila.html", jobs=lista, contagem=contagem, ativos=ativos, erro=erro)
+
+
+@app.route("/fila/<int:job_id>/repetir", methods=["POST"])
+def fila_repetir(job_id):
+    try:
+        jobs.tentar_novamente(job_id)
+    except Exception:
+        pass
+    return redirect("/fila")
+
+
+@app.route("/fila/limpar", methods=["POST"])
+def fila_limpar():
+    try:
+        jobs.limpar_concluidos()
+    except Exception:
+        pass
+    return redirect("/fila")
+
+
+@app.route("/indices", methods=["GET", "POST"])
+def indices_pagina():
+    erro = None
+    sucesso = None
+    nome_digitado = None
 
     if request.method == "POST":
-        arquivos = request.files.getlist("arquivos")
+        nome_digitado = request.form.get("nome", "")
+        try:
+            nome_real = indices.validar_nome_novo(nome_digitado)
+            cliente.criar_indice(nome_real, indices.MAPEAMENTO)
+            return redirect(f"/indices?criado={indices.nome_exibicao(nome_real)}")
+        except ValueError as e:
+            erro = str(e)
+        except RequestError as e:
+            if getattr(e, "error", "") == "resource_already_exists_exception":
+                erro = "Já existe um índice com esse nome."
+            else:
+                erro = f"O OpenSearch recusou a criação: {e}"
+        except Exception as e:
+            erro = f"Erro ao criar o índice: {e}"
 
-        for arquivo in arquivos:
-            if not arquivo or not arquivo.filename:
-                continue
+    if request.args.get("criado"):
+        sucesso = f'Índice "{request.args["criado"]}" criado.'
+    if request.args.get("apagado"):
+        sucesso = f'Índice "{request.args["apagado"]}" apagado.'
 
-            nome_seguro = secure_filename(arquivo.filename)
+    lista = []
+    try:
+        lista = _listar_indices()
+    except Exception as e:
+        erro = erro or f"Não consegui listar os índices no OpenSearch: {e}"
 
-            if not nome_seguro.lower().endswith(tuple(config.EXTENSOES_VALIDAS)):
-                resultados.append({"nome": arquivo.filename, "ok": False, "mensagem": "Extensão não permitida"})
-                continue
+    return render_template(
+        "indices.html",
+        indices=lista,
+        erro=erro,
+        sucesso=sucesso,
+        nome_digitado=nome_digitado,
+        prefixo=config.INDEX_PREFIX,
+    )
 
+
+@app.route("/indices/<nome>/apagar", methods=["GET", "POST"])
+def indice_apagar(nome):
+    if nome == config.INDEX_NAME or not indices.eh_gerenciado(nome):
+        abort(404, "Esse índice não pode ser apagado por aqui.")
+
+    try:
+        resumo = cliente.listar_indices(nome)
+    except Exception:
+        resumo = []
+    if not resumo:
+        abort(404, "Índice não encontrado.")
+
+    exibicao = indices.nome_exibicao(nome)
+    docs = resumo[0].get("docs.count") or 0
+    erro = None
+
+    if request.method == "POST":
+        if request.form.get("confirmacao", "").strip() != exibicao:
+            erro = "O nome digitado não confere. Nada foi apagado."
+        else:
             try:
-                pasta_destino = Path(config.PASTA_ORIGEM)
-                pasta_destino.mkdir(parents=True, exist_ok=True)
-
-                destino = pasta_destino / nome_seguro
-                arquivo.save(destino)
-
-                doc_id = gerar_doc_id(str(destino))
-
-                processar_e_indexar_pdf(str(destino), doc_id, config.INDEX_NAME)
-
-                resultados.append({"nome": nome_seguro, "ok": True, "mensagem": ""})
-
+                cliente.apagar_indice(nome)
             except Exception as e:
-                resultados.append({"nome": arquivo.filename, "ok": False, "mensagem": str(e)})
+                erro = f"Erro ao apagar o índice: {e}"
+            else:
+                try:
+                    jobs.apagar_do_indice(nome)
+                except Exception:
+                    pass
+                return redirect(f"/indices?apagado={exibicao}")
 
-    return render_template("ingest.html", resultados=resultados)
+    return render_template("indice_apagar.html", exibicao=exibicao, docs=docs, erro=erro)
 
 
-@app.route("/download/<doc_id>")
-def download(doc_id):
-    doc = cliente.get(config.INDEX_NAME, doc_id)
+@app.route("/download/<doc_id>", defaults={"indice": None})
+@app.route("/download/<indice>/<doc_id>")
+def download(indice, doc_id):
+    indice, doc = _documento(indice, doc_id)
     if doc is None:
         abort(404, "Documento não encontrado no índice.")
 
@@ -173,9 +343,10 @@ def download(doc_id):
     return send_file(caminho, as_attachment=True, download_name=os.path.basename(caminho))
 
 
-@app.route("/preview/<doc_id>")
-def preview(doc_id):
-    doc = cliente.get(config.INDEX_NAME, doc_id)
+@app.route("/preview/<doc_id>", defaults={"indice": None})
+@app.route("/preview/<indice>/<doc_id>")
+def preview(indice, doc_id):
+    indice, doc = _documento(indice, doc_id)
     if doc is None:
         abort(404, "Documento não encontrado no índice.")
 
@@ -184,6 +355,8 @@ def preview(doc_id):
 
     return render_template(
         "preview.html",
+        indice=indice,
+        indice_nome=indices.nome_exibicao(indice),
         doc_id=doc_id,
         nome=nome,
         tipo=extensao(nome).upper() or "Documento",
@@ -192,13 +365,14 @@ def preview(doc_id):
     )
 
 
-@app.route("/arquivo/<doc_id>")
-def arquivo(doc_id):
+@app.route("/arquivo/<doc_id>", defaults={"indice": None})
+@app.route("/arquivo/<indice>/<doc_id>")
+def arquivo(indice, doc_id):
     """Serve o arquivo original inline (sem forçar download), usado pelo
     preview para exibir PDFs/imagens direto no navegador. Como essa rota
     é carregada dentro de um <iframe>, o erro é uma página mínima (sem o
     topbar do site) em vez da página de erro completa."""
-    doc = cliente.get(config.INDEX_NAME, doc_id)
+    indice, doc = _documento(indice, doc_id)
     if doc is None:
         return render_template("preview_erro.html", mensagem="Documento não encontrado no índice."), 404
 
@@ -212,5 +386,17 @@ def arquivo(doc_id):
     return send_file(caminho, as_attachment=False)
 
 
+def _deve_iniciar_workers():
+    """Com debug=True o Werkzeug sobe dois processos (um só observa arquivos);
+    só o filho que atende requisições deve rodar os workers."""
+    if __name__ == "__main__" and MODO_DEBUG and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+        return False
+    return True
+
+
+if _deve_iniciar_workers():
+    worker.iniciar()
+
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", debug=True, port=5000)
+    app.run(host="0.0.0.0", debug=MODO_DEBUG, port=5000)

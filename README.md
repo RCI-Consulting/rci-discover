@@ -157,3 +157,31 @@ PUT _ingest/pipeline/documentos_pipeline
 - `web_app.py` : rota `/preview/<id>` passa a renderizar o Markdown (`conteudo_html`) em vez do texto cru.
 - `templates/preview.html`, `static/style.css` : bloco de texto extraído agora é HTML formatado (`.markdown-body`) em vez de `<pre>` — títulos, tabelas, listas e negrito com o visual do site.
 - `requirements.txt` : adicionada a dependência `markdown`.
+
+08/10/2026
+
+# Indexação em segundo plano (fila) e gestão de índices
+- Motivo: converter um PDF no Docling sem GPU leva minutos (um PDF de 17 páginas com fotos passou dos 300 s de timeout), e o upload rodava dentro da requisição HTTP, travando a tela e perdendo o trabalho quando o tempo estourava. Além disso, só existia um índice (`documentos`).
+- **Upload não espera mais o Docling.** `/ingest` só salva o arquivo e enfileira; workers em segundo plano chamam o Docling. A tela `/fila` mostra o status de cada documento (na fila, processando, concluído, erro), atualiza sozinha enquanto houver trabalho e tem "Tentar novamente" nos erros.
+- **A fila fica no MySQL** (tabela `jobs_indexacao`, criada automaticamente na primeira subida). Se o container cair ou reiniciar no meio de uma conversão, o job volta para a fila sozinho (em ~2 min, via "batimento" gravado a cada 30 s). Um job que já foi interrompido `JOBS_MAX_TENTATIVAS` vezes (padrão 2) vira erro — protege contra um documento que derruba o servidor em loop.
+- **Concorrência**: por padrão 1 documento por vez (`JOBS_CONCURRENCIA`). O Docling já satura a CPU sozinho, então vários índices em paralelo **não aceleram** a conversão: a fila é única, o paralelismo é só de navegação/organização. Só mais CPU no `docling-serve` muda isso.
+- **Vários índices**: nova tela `/indices` para criar (nome validado; o prefixo `rci-` é adicionado automaticamente), listar (documentos, tamanho, saúde) e apagar (pede para digitar o nome; os arquivos originais **não** são apagados do servidor, e os jobs daquele índice somem da fila). O upload ganhou um seletor de índice de destino e a **busca varre todos os índices**, mostrando a tag do índice em cada resultado.
+- **Segurança**: a aplicação só enxerga o índice padrão (`documentos`) e índices com o prefixo `rci-`. O índice vem da URL em `/preview/<indice>/<id>`, `/download/...` e `/arquivo/...`, então todo nome passa por `indices.eh_gerenciado()` antes de tocar no OpenSearch (testado: `interno-secreto`, `.opendistro_security` e `_all` retornam 404). O índice padrão não pode ser apagado pela interface. As rotas antigas `/preview/<id>` continuam funcionando (índice padrão).
+- **Arquivos por índice**: o índice padrão continua gravando em `pdf/` (os arquivos antigos já estão lá e o `doc_id` é um hash do caminho); índices novos gravam em `pdf/<nome>/`. Sem autenticação ainda — criar/apagar índice está aberto a qualquer um até a PR de login.
+- `DOCLING_TIMEOUT` (padrão 1800 s) substitui o timeout fixo de 300 s, e o log passa a registrar o tempo de cada conversão.
+
+## Variáveis de ambiente novas (cadastrar no Dokploy)
+- `MYSQL_HOST` : host **interno** do serviço MySQL no Dokploy (não o IP público), `MYSQL_PORT` (3306), `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DATABASE` (`rcisearch`). Sem elas o site abre, mas upload e `/fila` mostram erro de banco indisponível.
+- Opcionais: `DOCLING_TIMEOUT`, `JOBS_CONCURRENCIA`, `JOBS_MAX_TENTATIVAS`, `INDEX_PREFIX` (`rci-`), `FUSO_HORAS` (`-3`, horário exibido na fila), `JOBS_DESATIVADOS=1` (não sobe os workers; útil para depuração).
+
+## Arquivos novos
+- `db.py` (conexão MySQL), `jobs.py` (fila: enfileirar, reivindicar de forma atômica, batimento, recuperar travados), `worker.py` (threads que consomem a fila), `indices.py` (regras de quais índices a aplicação gerencia e o mapeamento padrão).
+- `templates/_topbar.html` (topbar único, antes copiado em 4 templates), `templates/fila.html`, `templates/indices.html`, `templates/indice_apagar.html`.
+
+## Arquivos alterados
+- `web_app.py` : rotas `/fila`, `/indices`, `/indices/<nome>/apagar`; `/ingest` enfileira em vez de processar; busca em todos os índices; rotas de preview/download/arquivo aceitam o índice na URL; workers sobem com o app (e só no processo que atende requisições quando o `debug` do Flask está ligado).
+- `opensearch_client.py` : métodos para criar/apagar/listar índices e `search` aceitando parâmetros extras. A listagem usa curinga porque a API `_cat` do OpenSearch trava quando recebe um nome explícito que não existe.
+- `docling_service.py`, `config.py`, `requirements.txt` (`pymysql[rsa]`; o extra `rsa` traz o `cryptography`, necessário para a autenticação padrão do MySQL 8), `static/style.css`, `templates/base.html`, `templates/index.html`, `templates/ingest.html`, `templates/preview.html`, `templates/erro.html`.
+
+## Como foi testado
+Contra um OpenSearch descartável (container local), um Docling falso com atraso e o MySQL real do Dokploy (a tabela de teste foi esvaziada depois): upload responde em < 1 s; processamento em ordem de chegada com concorrência 1; erro do Docling vira "erro" com a mensagem; reenvio do mesmo arquivo enquanto na fila é recusado; **servidor derrubado no meio da conversão → o job volta e conclui**; job que estourou as tentativas vira erro e não entra em loop; apagar índice limpa os jobs dele.
