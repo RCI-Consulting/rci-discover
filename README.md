@@ -185,3 +185,12 @@ PUT _ingest/pipeline/documentos_pipeline
 
 ## Como foi testado
 Contra um OpenSearch descartável (container local), um Docling falso com atraso e o MySQL real do Dokploy (a tabela de teste foi esvaziada depois): upload responde em < 1 s; processamento em ordem de chegada com concorrência 1; erro do Docling vira "erro" com a mensagem; reenvio do mesmo arquivo enquanto na fila é recusado; **servidor derrubado no meio da conversão → o job volta e conclui**; job que estourou as tentativas vira erro e não entra em loop; apagar índice limpa os jobs dele.
+
+08/10/2026 (2)
+
+# Resumo da busca: não quebra mais o card e não executa HTML do documento
+- Sintoma: resultados de documentos antigos mostravam um texto enorme sem espaços (o base64 de imagens que o Docling embutia antes da PR #6) e esse texto estourava a largura do card.
+- `utils.montar_trecho()` : monta o resumo do resultado. Escapa todo o HTML (só as tags `<em>` do destaque do OpenSearch sobrevivem) e encurta qualquer sequência de 40+ caracteres sem espaço (base64, URLs gigantes) para 20 caracteres + `…`.
+- **Correção de segurança:** o resumo era renderizado com `|safe` sem escapar nada — um documento com `<script>` ou `<img onerror=...>` no texto executaria na tela de busca (o preview já escapava). Testado com `<script>` no destaque e no texto: aparece como texto, não executa.
+- `static/style.css` : o card quebra palavras longas (`overflow-wrap: anywhere`); os links "Visualizar" e "Baixar original" não quebram, e só o nome do arquivo quebra quando é muito comprido.
+- Os documentos antigos continuam com o base64 salvo no OpenSearch (só o resumo na tela foi corrigido). Reenviar o arquivo sobrescreve o registro e limpa o conteúdo.

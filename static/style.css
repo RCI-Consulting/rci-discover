@@ -195,11 +195,14 @@ a { color: var(--rci-blue); }
 .result-card h3 a { color: var(--rci-navy); text-decoration: none; }
 .result-card h3 a:hover { text-decoration: underline; }
 
+.result-card { min-width: 0; overflow-wrap: anywhere; }
+
 .result-card .snippet {
   margin: 0 0 8px 0;
   color: var(--rci-ink);
   font-size: 14px;
   line-height: 1.55;
+  overflow-wrap: anywhere;
 }
 
 .result-card .snippet em {
@@ -212,13 +215,19 @@ a { color: var(--rci-blue); }
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 16px;
   font-size: 12.5px;
   color: var(--rci-text-muted);
 }
 
+.result-footer .meta { min-width: 0; overflow-wrap: anywhere; }
+
 .result-footer .acoes {
   display: flex;
+  flex: none;
   gap: 16px;
+  white-space: nowrap;
 }
 
 .result-footer .download,

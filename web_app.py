@@ -24,7 +24,7 @@ import indices
 import jobs
 import worker
 from opensearch_client import OpenSearchClient
-from utils import extensao, gerar_doc_id, pode_embutir, renderizar_markdown
+from utils import extensao, gerar_doc_id, montar_trecho, pode_embutir, renderizar_markdown
 
 MODO_DEBUG = True
 
@@ -130,11 +130,9 @@ def index():
             for hit in resp["hits"]["hits"]:
                 fonte = hit["_source"]
 
-                # Se for busca filtrada com highlight, pega o destaque. Senão, corta os 220 primeiros caracteres
+                # Destaque do OpenSearch; sem ele, os primeiros 220 caracteres (já escapado)
                 highlight = hit.get("highlight", {}).get("conteudo", [None])[0]
-                conteudo_bruto = fonte.get("conteudo", "")
-
-                trecho = highlight or (conteudo_bruto[:220] + "..." if len(conteudo_bruto) > 220 else conteudo_bruto)
+                trecho = montar_trecho(highlight, fonte.get("conteudo", ""))
 
                 nome = fonte.get("nome", "(sem nome)")
 
