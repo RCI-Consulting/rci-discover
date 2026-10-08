@@ -47,3 +47,8 @@ JOBS_MAX_TENTATIVAS = int(os.getenv("JOBS_MAX_TENTATIVAS", "2"))
 
 # Fuso para exibir horários na tela (o banco guarda em UTC). Brasília = -3.
 FUSO_HORAS = int(os.getenv("FUSO_HORAS", "-3"))
+
+# Quantos proxies reverso ficam na frente do app (o Traefik do Dokploy = 1).
+# O IP do cliente é lido do X-Forwarded-For nesse nível; 0 desliga a leitura
+# (use 0 se o app for exposto direto, senão o cabeçalho poderia ser forjado).
+PROXIES_CONFIAVEIS = int(os.getenv("PROXIES_CONFIAVEIS", "1"))

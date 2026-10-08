@@ -194,3 +194,18 @@ Contra um OpenSearch descartável (container local), um Docling falso com atraso
 - **Correção de segurança:** o resumo era renderizado com `|safe` sem escapar nada — um documento com `<script>` ou `<img onerror=...>` no texto executaria na tela de busca (o preview já escapava). Testado com `<script>` no destaque e no texto: aparece como texto, não executa.
 - `static/style.css` : o card quebra palavras longas (`overflow-wrap: anywhere`); os links "Visualizar" e "Baixar original" não quebram, e só o nome do arquivo quebra quando é muito comprido.
 - Os documentos antigos continuam com o base64 salvo no OpenSearch (só o resumo na tela foi corrigido). Reenviar o arquivo sobrescreve o registro e limpa o conteúdo.
+
+08/10/2026 (3)
+
+# Auditoria das buscas (MySQL)
+- Cada busca feita em `/` grava uma linha na tabela `auditoria_buscas` (criada sozinha no primeiro uso): **termo**, **total de resultados**, **data/hora**, **usuário** e **IP**. Busca vazia não é registrada.
+- **Não atrapalha a busca:** a gravação roda em segundo plano (`auditoria.py`). Se o MySQL estiver fora ou lento, a busca responde normal (testado com o banco inacessível: 0,06 s) e a falha só aparece no log (`[Auditoria] Não consegui registrar a busca`).
+- **IP:** atrás do Traefik, `request.remote_addr` seria sempre o IP do proxy. O `ProxyFix` passa a ler o IP real do `X-Forwarded-For`, considerando só o último salto (`PROXIES_CONFIAVEIS`, padrão 1 = o Traefik). Um cabeçalho forjado pelo cliente não engana (testado). Use `PROXIES_CONFIAVEIS=0` se o app for exposto direto, sem proxy.
+- **Usuário:** a coluna já existe e é preenchida a partir de `session["usuario"]`, a chave que o login com Microsoft (PR #3) grava. Enquanto não houver login fica `NULL`; quando a PR #3 entrar, passa a ser preenchido sem mudar mais nada.
+- Data/hora ficam em **UTC** (como a fila). Para ver no horário de Brasília: `SELECT CONVERT_TZ(criado_em, '+00:00', '-03:00') AS data_hora, termo, total_resultados, usuario, ip FROM auditoria_buscas ORDER BY id DESC;`
+- Termo é truncado em 1000 caracteres. `total_resultados` vem do OpenSearch e para em 10000 quando há mais que isso.
+- **Atenção (LGPD):** o termo pesquisado pode conter dado pessoal, e junto com usuário e IP isso é dado de uso. Ainda não há política de retenção/limpeza.
+- **A conferir no primeiro deploy:** se o IP gravado aparecer como `10.0.0.x` (rede interna do Docker Swarm) em vez do IP real da máquina, o Swarm está mascarando a origem antes do Traefik e a porta do Traefik precisa publicar em `mode: host`.
+
+## Arquivos
+- Novo: `auditoria.py`. Alterados: `web_app.py` (ProxyFix e chamada após cada busca), `config.py` (`PROXIES_CONFIAVEIS`).
