@@ -209,3 +209,10 @@ Contra um OpenSearch descartável (container local), um Docling falso com atraso
 
 ## Arquivos
 - Novo: `auditoria.py`. Alterados: `web_app.py` (ProxyFix e chamada após cada busca), `config.py` (`PROXIES_CONFIAVEIS`).
+
+08/10/2026 (4)
+
+# Menu do topo sempre à esquerda, junto da marca
+- Sintoma: ao trocar de página o menu mudava de lado — na home ficava à esquerda (a marca some do topo porque já aparece grande no centro) e nas demais páginas ia para a direita, com a marca à esquerda.
+- `static/style.css` : a barra do topo alinha tudo à esquerda (`justify-content: flex-start` com espaçamento único) e o botão **RCISearch** (volta para a home) fica colado no menu. Na home a marca do topo fica `visibility: hidden` em vez de `display: none`, então ocupa o mesmo lugar e o menu **não muda de posição** entre as páginas. Em tela estreita o menu desce para baixo da marca, também à esquerda.
+- Medido em 7 páginas (home, busca, fila, índices, upload, preview, erro 404): em 1200 px a marca fica em x=32 e o menu em x=187 em todas; sem rolagem horizontal.

@@ -39,7 +39,9 @@ a { color: var(--rci-blue); }
 .topbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 8px 28px;
   padding: 18px 32px;
 }
 
@@ -143,7 +145,7 @@ a { color: var(--rci-blue); }
 
 /* Home (sem query): tudo centralizado, como a home do Google */
 .page.is-home .topbar { position: absolute; top: 0; left: 0; right: 0; }
-.page.is-home .topbar .brand { display: none; }
+.page.is-home .topbar .brand { visibility: hidden; }
 
 .home-hero {
   flex: 1;
@@ -163,7 +165,7 @@ a { color: var(--rci-blue); }
 .home-hero .search-form { max-width: 640px; }
 
 /* Resultados: layout com a barra fixa no topo */
-.page.is-results .topbar { border-bottom: 1px solid var(--rci-border); gap: 24px; }
+.page.is-results .topbar { border-bottom: 1px solid var(--rci-border); }
 .page.is-results .search-form { justify-content: flex-start; }
 .page.is-results .search-box { max-width: 640px; }
 
