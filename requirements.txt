@@ -3,3 +3,4 @@ python-dotenv
 flask
 requests
 markdown
+pymysql[rsa]

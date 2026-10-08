@@ -2,15 +2,8 @@
 {% block title %}{{ titulo }} — RCI Search{% endblock %}
 {% block content %}
 <div class="page is-results">
-  <header class="topbar">
-    <a href="/" class="brand">
-      <span class="brand-rci">RCI</span><span class="brand-search">Search</span>
-    </a>
-    <nav class="topnav">
-      <a href="/">Buscar</a>
-      <a href="/ingest">Adicionar documento</a>
-    </nav>
-  </header>
+  {% set ativo = 'buscar' %}
+  {% include '_topbar.html' %}
 
   <main class="erro-area">
     <div class="erro-card">

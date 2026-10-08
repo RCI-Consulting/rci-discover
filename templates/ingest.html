@@ -2,33 +2,44 @@
 {% block title %}Adicionar documento — RCI Search{% endblock %}
 {% block content %}
 <div class="page is-results">
-  <header class="topbar">
-    <a href="/" class="brand">
-      <span class="brand-rci">RCI</span><span class="brand-search">Search</span>
-    </a>
-    <nav class="topnav">
-      <a href="/">Buscar</a>
-      <a href="/ingest" class="active">Adicionar documento</a>
-    </nav>
-  </header>
+  {% set ativo = 'ingest' %}
+  {% include '_topbar.html' %}
 
   <main class="ingest-main">
     <div class="ingest-card">
       <h1>Adicionar documento</h1>
-      <p class="hint">PDF, DOCX, DOC, TXT, ODT ou RTF · até 50MB por arquivo</p>
+      <p class="hint">PDF, DOCX, DOC, TXT, ODT ou RTF · até 50MB no total por envio · a indexação roda em segundo plano</p>
+
+      {% if erro %}
+        <div class="alert alert-error">{{ erro }}</div>
+      {% endif %}
+
       <form method="post" enctype="multipart/form-data">
+        <label class="campo">
+          <span>Índice de destino</span>
+          <select name="indice" required>
+            {% for i in indices %}
+              <option value="{{ i.nome }}" {{ 'selected' if i.nome == indice_selecionado }}>{{ i.exibicao }}</option>
+            {% endfor %}
+          </select>
+        </label>
         <input type="file" name="arquivos" accept=".pdf,.docx,.doc,.txt,.odt,.rtf" multiple required>
-        <button type="submit">Enviar e indexar</button>
+        <button type="submit" {{ 'disabled' if not indices }}>Enviar</button>
       </form>
+
+      {% if not indices and not erro %}
+        <p class="hint">Nenhum índice disponível. <a href="/indices">Crie um índice</a> primeiro.</p>
+      {% endif %}
 
       {% if resultados %}
         <div class="upload-results">
           {% for r in resultados %}
             <div class="upload-item {{ 'ok' if r.ok else 'falha' }}">
               <span>{{ r.nome }}</span>
-              <span class="status">{{ 'Indexado ✓' if r.ok else r.mensagem }}</span>
+              <span class="status">{{ 'Na fila ✓' if r.ok else r.mensagem }}</span>
             </div>
           {% endfor %}
+          <p class="hint"><a href="/fila">Acompanhar a fila →</a></p>
         </div>
       {% endif %}
     </div>

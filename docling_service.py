@@ -1,6 +1,7 @@
 import mimetypes
 import os
 import re
+import time
 import requests
 import config
 
@@ -36,12 +37,13 @@ def extrair_texto_docling(caminho_arquivo: str) -> str:
         "ocr_engine": "easyocr",
     }
 
-    print(f"[Docling] Enviando '{nome_arquivo}' para {url}...")
+    print(f"[Docling] Enviando '{nome_arquivo}' para {url} (timeout {config.DOCLING_TIMEOUT}s)...")
+    inicio = time.monotonic()
 
     with open(caminho_arquivo, "rb") as f:
         files = {"files": (nome_arquivo, f, content_type)}
         try:
-            res = requests.post(url, files=files, params=params, timeout=(10, 300))
+            res = requests.post(url, files=files, params=params, timeout=(10, config.DOCLING_TIMEOUT))
         except Exception as e:
             raise RuntimeError(f"Erro de conexão com o Docling: {str(e)}")
 
@@ -95,7 +97,7 @@ def extrair_texto_docling(caminho_arquivo: str) -> str:
     texto = _remover_imagens_base64(str(texto)).strip()
 
     print(f"=== TEXTO EXTRAÍDO ({nome_arquivo}) ===")
-    print(f"Tamanho: {len(texto)} caracteres")
+    print(f"Tamanho: {len(texto)} caracteres | conversão em {time.monotonic() - inicio:.1f}s")
     if not texto:
         # Ajuda a diagnosticar rápido se a API mudar de formato de novo:
         print(f"[AVISO: TEXTO VAZIO] Chaves recebidas em 'document': {list(doc.keys()) if isinstance(doc, dict) else 'N/A'}")
