@@ -17,8 +17,10 @@ from datetime import timedelta
 
 from flask import Flask, abort, redirect, render_template, request, send_file
 from opensearchpy.exceptions import RequestError
+from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import secure_filename
 
+import auditoria
 import config
 import indices
 import jobs
@@ -30,6 +32,8 @@ MODO_DEBUG = True
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # limite de 50 MB por envio
+if config.PROXIES_CONFIAVEIS > 0:
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=config.PROXIES_CONFIAVEIS)
 cliente = OpenSearchClient()
 
 STATUS_TEXTO = {
@@ -126,6 +130,7 @@ def index():
 
             resp = cliente.search(indices.padrao_busca(), body, ignore_unavailable=True)
             total = resp["hits"]["total"]["value"]
+            auditoria.registrar_busca(q, total, *auditoria.contexto_requisicao())
 
             for hit in resp["hits"]["hits"]:
                 fonte = hit["_source"]
