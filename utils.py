@@ -1,5 +1,6 @@
 import hashlib
 import html
+import re
 from pathlib import Path
 
 import markdown as _markdown
@@ -35,3 +36,25 @@ def renderizar_markdown(texto: str) -> str:
         html.escape(texto),
         extensions=["tables", "fenced_code", "sane_lists"],
     )
+
+
+# Sequência longa sem espaço (base64 de imagens antigas, URLs enormes...): não
+# quebra linha sozinha, não é legível e estoura o card da busca.
+_SEQUENCIA_LONGA = re.compile(r"\S{40,}")
+
+
+def montar_trecho(destaque, conteudo: str, limite: int = 220) -> str:
+    """HTML seguro para o resumo de um resultado de busca.
+
+    `destaque` é o fragmento do OpenSearch (com <em> nos termos achados) e
+    `conteudo` o texto completo, usado quando não há destaque. Tudo é escapado
+    — só as tags <em>/</em> do destaque sobrevivem — e sequências enormes sem
+    espaço são encurtadas, então o resultado pode ir direto num `|safe`.
+    """
+    if destaque:
+        texto = html.escape(destaque).replace("&lt;em&gt;", "<em>").replace("&lt;/em&gt;", "</em>")
+    else:
+        conteudo = conteudo or ""
+        texto = html.escape(conteudo[:limite]) + ("..." if len(conteudo) > limite else "")
+    return _SEQUENCIA_LONGA.sub(lambda m: m.group(0)[:20] + "…", texto)
+
