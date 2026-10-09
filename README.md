@@ -243,3 +243,12 @@ Contra um OpenSearch descartável (container local), um Docling falso com atraso
 
 ## Arquivos
 - Novo: `facetas.py`. Alterados: `web_app.py` (busca com `post_filter`/`aggs`, rota `/admin/indices/<nome>/reindexar`), `opensearch_client.py` (`garantir_mapeamento`, `contar_desatualizados`, `listar_desatualizados`), `docling_service.py` (grava `tipo` e `indexado_em`), `indices.py` (mapeamento), `auditoria.py` (coluna `filtros`), `templates/index.html`, `indices.html`, `auditoria.html`, `static/style.css`.
+
+09/10/2026 (3)
+
+# Resultados da busca em 3 colunas
+- A tela de resultados passou a ter **3 colunas**: **filtros** (facetas) na margem esquerda, alinhados à marca RCISearch do topo; **resultados fixos no centro da página** (720 px); e uma **coluna livre à direita**, com a mesma largura da esquerda para o centro ficar exatamente centralizado. A coluna da direita está vazia de propósito (reservada para algo útil depois, como prévia rápida do documento).
+- A **caixa de busca** agora fica alinhada com a coluna dos resultados (antes ficava colada no canto esquerdo da tela). A home não mudou.
+- **Telas menores:** abaixo de 1200 px a coluna da direita some e filtros + resultados ficam juntos à esquerda; abaixo de 860 px os filtros passam para cima dos resultados.
+- Medido em 1920, 1366, 1200, 1150 e 700 px: em 1200 px ou mais o centro dos resultados coincide com o centro da tela (diferença 0 px); sem rolagem horizontal; filtros em x=32, igual à marca.
+- Só `templates/index.html` e `static/style.css` mudaram (sem mudança de rotas ou de lógica).
