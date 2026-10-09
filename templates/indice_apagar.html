@@ -2,8 +2,9 @@
 {% block title %}Apagar índice — RCI Search{% endblock %}
 {% block content %}
 <div class="page is-results">
-  {% set ativo = 'indices' %}
+  {% set ativo = 'admin' %}{% set aba = 'indices' %}
   {% include '_topbar.html' %}
+  {% include '_admin_abas.html' %}
 
   <main class="erro-area">
     <div class="erro-card">
@@ -18,7 +19,7 @@
         <label>Para confirmar, digite o nome do índice: <code>{{ exibicao }}</code></label>
         <input type="text" name="confirmacao" autocomplete="off" required>
         <button type="submit" class="btn-perigo">Apagar índice</button>
-        <a href="/indices" class="voltar-btn">Cancelar</a>
+        <a href="/admin/indices" class="voltar-btn">Cancelar</a>
       </form>
     </div>
   </main>

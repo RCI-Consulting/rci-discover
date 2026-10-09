@@ -20,6 +20,7 @@ from opensearchpy.exceptions import RequestError
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import secure_filename
 
+import acesso
 import auditoria
 import config
 import indices
@@ -71,6 +72,25 @@ def _documento(indice, doc_id):
     if not indices.eh_gerenciado(indice):
         return None, None
     return indice, cliente.get(indice, doc_id)
+
+
+@app.context_processor
+def contexto_comum():
+    return {"eh_admin": acesso.eh_admin()}
+
+
+@app.before_request
+def proteger_admin():
+    if request.path.startswith("/admin") and not acesso.eh_admin():
+        abort(403)
+
+
+@app.errorhandler(403)
+def sem_permissao(e):
+    return render_template(
+        "erro.html", titulo="Acesso restrito",
+        mensagem="Você não tem permissão para acessar a área de administração.",
+    ), 403
 
 
 @app.errorhandler(404)
@@ -157,7 +177,12 @@ def index():
     return render_template("index.html", q=q, resultados=resultados, total=total, erro=erro)
 
 
-@app.route("/ingest", methods=["GET", "POST"])
+@app.route("/admin")
+def admin():
+    return redirect("/admin/indices")
+
+
+@app.route("/admin/documentos", methods=["GET", "POST"])
 def ingest():
     resultados = []
     erro = None
@@ -217,7 +242,7 @@ def ingest():
     )
 
 
-@app.route("/fila")
+@app.route("/admin/fila")
 def fila():
     erro = None
     lista = []
@@ -237,25 +262,25 @@ def fila():
     return render_template("fila.html", jobs=lista, contagem=contagem, ativos=ativos, erro=erro)
 
 
-@app.route("/fila/<int:job_id>/repetir", methods=["POST"])
+@app.route("/admin/fila/<int:job_id>/repetir", methods=["POST"])
 def fila_repetir(job_id):
     try:
         jobs.tentar_novamente(job_id)
     except Exception:
         pass
-    return redirect("/fila")
+    return redirect("/admin/fila")
 
 
-@app.route("/fila/limpar", methods=["POST"])
+@app.route("/admin/fila/limpar", methods=["POST"])
 def fila_limpar():
     try:
         jobs.limpar_concluidos()
     except Exception:
         pass
-    return redirect("/fila")
+    return redirect("/admin/fila")
 
 
-@app.route("/indices", methods=["GET", "POST"])
+@app.route("/admin/indices", methods=["GET", "POST"])
 def indices_pagina():
     erro = None
     sucesso = None
@@ -266,7 +291,7 @@ def indices_pagina():
         try:
             nome_real = indices.validar_nome_novo(nome_digitado)
             cliente.criar_indice(nome_real, indices.MAPEAMENTO)
-            return redirect(f"/indices?criado={indices.nome_exibicao(nome_real)}")
+            return redirect(f"/admin/indices?criado={indices.nome_exibicao(nome_real)}")
         except ValueError as e:
             erro = str(e)
         except RequestError as e:
@@ -298,7 +323,7 @@ def indices_pagina():
     )
 
 
-@app.route("/indices/<nome>/apagar", methods=["GET", "POST"])
+@app.route("/admin/indices/<nome>/apagar", methods=["GET", "POST"])
 def indice_apagar(nome):
     if nome == config.INDEX_NAME or not indices.eh_gerenciado(nome):
         abort(404, "Esse índice não pode ser apagado por aqui.")
@@ -327,9 +352,60 @@ def indice_apagar(nome):
                     jobs.apagar_do_indice(nome)
                 except Exception:
                     pass
-                return redirect(f"/indices?apagado={exibicao}")
+                return redirect(f"/admin/indices?apagado={exibicao}")
 
     return render_template("indice_apagar.html", exibicao=exibicao, docs=docs, erro=erro)
+
+
+POR_PAGINA_AUDITORIA = 50
+PERIODOS_AUDITORIA = [(1, "Últimas 24 horas"), (7, "Últimos 7 dias"), (30, "Últimos 30 dias"), (90, "Últimos 90 dias"), (0, "Todo o período")]
+
+
+@app.route("/admin/auditoria")
+def auditoria_pagina():
+    try:
+        dias = int(request.args.get("dias", 7))
+    except ValueError:
+        dias = 7
+    if dias not in {d for d, _ in PERIODOS_AUDITORIA}:
+        dias = 7
+    termo = request.args.get("termo", "").strip()[:200]
+    try:
+        pagina = max(1, int(request.args.get("pagina", 1)))
+    except ValueError:
+        pagina = 1
+
+    erro = None
+    resumo = {"buscas": 0, "sem_resultado": 0, "termos": 0}
+    populares, sem_resultado, linhas, total = [], [], [], 0
+    try:
+        resumo = auditoria.resumo(dias, termo)
+        populares = auditoria.mais_buscados(dias, termo)
+        sem_resultado = auditoria.mais_buscados(dias, termo, sem_resultado=True)
+        linhas, total = auditoria.listar(dias, termo, pagina, POR_PAGINA_AUDITORIA)
+        for linha in linhas:
+            linha["criado_local"] = linha["criado_em"] + timedelta(hours=config.FUSO_HORAS)
+    except Exception as e:
+        erro = f"Banco de dados da auditoria indisponível: {e}"
+
+    paginas = max(1, -(-total // POR_PAGINA_AUDITORIA))
+    return render_template(
+        "auditoria.html",
+        erro=erro, dias=dias, termo=termo, periodos=PERIODOS_AUDITORIA,
+        resumo=resumo, populares=populares, sem_resultado=sem_resultado,
+        linhas=linhas, total=total, pagina=pagina, paginas=paginas,
+    )
+
+
+ROTAS_ANTIGAS = {"/ingest": "/admin/documentos", "/fila": "/admin/fila", "/indices": "/admin/indices"}
+
+
+def _redirecionar_antiga(destino):
+    return lambda: redirect(destino, 308)  # 308 mantém o método (um POST de upload não se perde)
+
+
+for _antiga, _nova in ROTAS_ANTIGAS.items():
+    app.add_url_rule(_antiga, f"antiga{_antiga.replace('/', '_')}", _redirecionar_antiga(_nova), methods=["GET", "POST"])
 
 
 @app.route("/download/<doc_id>", defaults={"indice": None})

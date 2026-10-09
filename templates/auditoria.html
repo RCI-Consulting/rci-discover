@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Auditoria — RCI Search{% endblock %}
+{% block content %}
+<div class="page is-results">
+  {% set ativo = 'admin' %}{% set aba = 'auditoria' %}
+  {% include '_topbar.html' %}
+  {% include '_admin_abas.html' %}
+
+  <main class="tabela-area">
+    <h1>Auditoria das buscas</h1>
+    <p class="hint">Horários no fuso de Brasília. Buscas vazias não são registradas.</p>
+
+    <form method="get" class="filtros">
+      <select name="dias" aria-label="Período">
+        {% for d, nome in periodos %}
+          <option value="{{ d }}" {{ 'selected' if d == dias }}>{{ nome }}</option>
+        {% endfor %}
+      </select>
+      <input type="text" name="termo" value="{{ termo }}" placeholder="Filtrar por termo" maxlength="200">
+      <button type="submit" class="btn-sec">Filtrar</button>
+      {% if termo or dias != 7 %}<a href="/admin/auditoria" class="hint">Limpar</a>{% endif %}
+    </form>
+
+    {% if erro %}
+      <div class="alert alert-error">{{ erro }}</div>
+    {% else %}
+      <div class="cards-resumo">
+        <div class="card-resumo"><strong>{{ resumo.buscas }}</strong><span>buscas</span></div>
+        <div class="card-resumo"><strong>{{ resumo.termos }}</strong><span>termos diferentes</span></div>
+        <div class="card-resumo"><strong>{{ resumo.sem_resultado }}</strong><span>sem resultado</span></div>
+      </div>
+
+      <div class="rankings">
+        <section>
+          <h2>Mais buscados</h2>
+          {% if populares %}
+            <table class="tabela tabela-compacta">
+              {% for p in populares %}
+                <tr><td>{{ p.termo }}</td><td class="num">{{ p.vezes }}×</td></tr>
+              {% endfor %}
+            </table>
+          {% else %}<p class="hint">Nenhuma busca no período.</p>{% endif %}
+        </section>
+        <section>
+          <h2>Sem resultado</h2>
+          {% if sem_resultado %}
+            <table class="tabela tabela-compacta">
+              {% for p in sem_resultado %}
+                <tr><td>{{ p.termo }}</td><td class="num">{{ p.vezes }}×</td></tr>
+              {% endfor %}
+            </table>
+          {% else %}<p class="hint">Toda busca do período achou algo.</p>{% endif %}
+        </section>
+      </div>
+
+      <h2>Histórico <span class="hint">· {{ total }} busca(s)</span></h2>
+      {% if linhas %}
+        <table class="tabela">
+          <thead>
+            <tr><th>Data e hora</th><th>Termo</th><th>Resultados</th><th>Usuário</th><th>IP</th></tr>
+          </thead>
+          <tbody>
+            {% for l in linhas %}
+              <tr>
+                <td class="nowrap">{{ l.criado_local.strftime('%d/%m/%Y %H:%M:%S') }}</td>
+                <td class="termo">{{ l.termo }}</td>
+                <td>{% if l.total_resultados == 0 %}<span class="badge badge-erro">0</span>{% else %}{{ l.total_resultados }}{% endif %}</td>
+                <td>{{ l.usuario or '—' }}</td>
+                <td class="nowrap">{{ l.ip or '—' }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+
+        {% if paginas > 1 %}
+          <div class="paginacao">
+            {% if pagina > 1 %}<a href="?dias={{ dias }}&termo={{ termo|urlencode }}&pagina={{ pagina - 1 }}">← Anterior</a>{% endif %}
+            <span class="hint">Página {{ pagina }} de {{ paginas }}</span>
+            {% if pagina < paginas %}<a href="?dias={{ dias }}&termo={{ termo|urlencode }}&pagina={{ pagina + 1 }}">Próxima →</a>{% endif %}
+          </div>
+        {% endif %}
+      {% else %}
+        <div class="empty">Nenhuma busca registrada neste filtro.</div>
+      {% endif %}
+    {% endif %}
+  </main>
+</div>
+{% endblock %}

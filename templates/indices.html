@@ -2,8 +2,9 @@
 {% block title %}Índices — RCI Search{% endblock %}
 {% block content %}
 <div class="page is-results">
-  {% set ativo = 'indices' %}
+  {% set ativo = 'admin' %}{% set aba = 'indices' %}
   {% include '_topbar.html' %}
+  {% include '_admin_abas.html' %}
 
   <main class="tabela-area">
     <h1>Índices</h1>
@@ -16,7 +17,7 @@
       <div class="alert alert-ok">{{ sucesso }}</div>
     {% endif %}
 
-    <form method="post" action="/indices" class="form-linha">
+    <form method="post" action="/admin/indices" class="form-linha">
       <input type="text" name="nome" placeholder="nome-do-novo-indice" value="{{ nome_digitado or '' }}"
              pattern="[a-z0-9][a-z0-9_-]{1,49}" required>
       <button type="submit">Criar índice</button>
@@ -39,7 +40,7 @@
               <td><span class="badge badge-saude-{{ i.saude }}">{{ i.saude }}</span></td>
               <td>
                 {% if not i.padrao %}
-                  <a class="link-perigo" href="/indices/{{ i.nome }}/apagar">Apagar</a>
+                  <a class="link-perigo" href="/admin/indices/{{ i.nome }}/apagar">Apagar</a>
                 {% endif %}
               </td>
             </tr>

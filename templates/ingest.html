@@ -2,8 +2,9 @@
 {% block title %}Adicionar documento — RCI Search{% endblock %}
 {% block content %}
 <div class="page is-results">
-  {% set ativo = 'ingest' %}
+  {% set ativo = 'admin' %}{% set aba = 'documentos' %}
   {% include '_topbar.html' %}
+  {% include '_admin_abas.html' %}
 
   <main class="ingest-main">
     <div class="ingest-card">
@@ -28,7 +29,7 @@
       </form>
 
       {% if not indices and not erro %}
-        <p class="hint">Nenhum índice disponível. <a href="/indices">Crie um índice</a> primeiro.</p>
+        <p class="hint">Nenhum índice disponível. <a href="/admin/indices">Crie um índice</a> primeiro.</p>
       {% endif %}
 
       {% if resultados %}
@@ -39,7 +40,7 @@
               <span class="status">{{ 'Na fila ✓' if r.ok else r.mensagem }}</span>
             </div>
           {% endfor %}
-          <p class="hint"><a href="/fila">Acompanhar a fila →</a></p>
+          <p class="hint"><a href="/admin/fila">Acompanhar a fila →</a></p>
         </div>
       {% endif %}
     </div>
