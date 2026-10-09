@@ -2,10 +2,13 @@ import mimetypes
 import os
 import re
 import time
+from datetime import datetime, timezone
+
 import requests
 import config
 
 from opensearch_client import OpenSearchClient
+from utils import extensao
 
 BASE_DOCLING_URL = config.DOCLING_BASE_URL.rstrip("/")
 
@@ -117,11 +120,15 @@ def processar_e_indexar_pdf(caminho_arquivo, doc_id=None, nome_indice=None):
     cliente = OpenSearchClient()
 
     # Garante que o conteúdo não vá como Base64 nem ultrapasse o limite
+    nome = os.path.basename(caminho_arquivo)
     documento = {
-        "nome": os.path.basename(caminho_arquivo),
+        "nome": nome,
         "caminho": str(caminho_arquivo),
         "conteudo": texto_extraido,
+        "tipo": extensao(nome) or "outro",
+        "indexado_em": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
+    cliente.garantir_mapeamento(nome_indice)
 
     return cliente.index(
         index=nome_indice,

@@ -25,9 +25,10 @@
     <p class="hint">Letras minúsculas, números, hífen e underline (2 a 50 caracteres). O prefixo <code>{{ prefixo }}</code> é adicionado automaticamente.</p>
 
     {% if indices %}
+      <p class="hint"><strong>Desatualizados</strong>: documentos indexados antes dos filtros da busca (tipo e data). "Reindexar" reprocessa o arquivo original guardado no servidor, sem precisar enviar de novo, e roda pela fila.</p>
       <table class="tabela">
         <thead>
-          <tr><th>Índice</th><th>Documentos</th><th>Tamanho</th><th>Saúde</th><th></th></tr>
+          <tr><th>Índice</th><th>Documentos</th><th>Tamanho</th><th>Saúde</th><th>Desatualizados</th><th></th></tr>
         </thead>
         <tbody>
           {% for i in indices %}
@@ -38,6 +39,14 @@
               <td>{{ i.docs }}</td>
               <td>{{ i.tamanho }}</td>
               <td><span class="badge badge-saude-{{ i.saude }}">{{ i.saude }}</span></td>
+              <td>
+                {% if i.pendentes %}
+                  <form method="post" action="/admin/indices/{{ i.nome }}/reindexar">
+                    {{ i.pendentes }}
+                    <button type="submit" class="btn-sec" title="Reprocessa esses documentos para ganharem tipo e data (filtros da busca)">Reindexar</button>
+                  </form>
+                {% else %}—{% endif %}
+              </td>
               <td>
                 {% if not i.padrao %}
                   <a class="link-perigo" href="/admin/indices/{{ i.nome }}/apagar">Apagar</a>

@@ -57,7 +57,7 @@
       {% if linhas %}
         <table class="tabela">
           <thead>
-            <tr><th>Data e hora</th><th>Termo</th><th>Resultados</th><th>Usuário</th><th>IP</th></tr>
+            <tr><th>Data e hora</th><th>Termo</th><th>Resultados</th><th>Filtros</th><th>Usuário</th><th>IP</th></tr>
           </thead>
           <tbody>
             {% for l in linhas %}
@@ -65,6 +65,7 @@
                 <td class="nowrap">{{ l.criado_local.strftime('%d/%m/%Y %H:%M:%S') }}</td>
                 <td class="termo">{{ l.termo }}</td>
                 <td>{% if l.total_resultados == 0 %}<span class="badge badge-erro">0</span>{% else %}{{ l.total_resultados }}{% endif %}</td>
+                <td>{{ l.filtros or '—' }}</td>
                 <td>{{ l.usuario or '—' }}</td>
                 <td class="nowrap">{{ l.ip or '—' }}</td>
               </tr>

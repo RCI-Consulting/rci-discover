@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS auditoria_buscas (
     total_resultados INT           NOT NULL,
     usuario          VARCHAR(255)  NULL,
     ip               VARCHAR(45)   NULL,
+    filtros          VARCHAR(500)  NULL,
     INDEX idx_criado_em (criado_em),
     INDEX idx_usuario (usuario)
 ) CHARACTER SET utf8mb4
@@ -35,26 +36,32 @@ def _garantir_tabela(con):
             return
         with con.cursor() as cur:
             cur.execute(_DDL)
+            # Tabela criada antes das facetas não tem a coluna `filtros`.
+            cur.execute("SHOW COLUMNS FROM auditoria_buscas LIKE 'filtros'")
+            if not cur.fetchone():
+                cur.execute("ALTER TABLE auditoria_buscas ADD COLUMN filtros VARCHAR(500) NULL")
         _tabela_ok = True
 
 
-def _gravar(termo, total, usuario, ip):
+def _gravar(termo, total, usuario, ip, filtros):
     try:
         with conectar() as con:
             _garantir_tabela(con)
             with con.cursor() as cur:
                 cur.execute(
-                    "INSERT INTO auditoria_buscas (criado_em, termo, total_resultados, usuario, ip) "
-                    "VALUES (UTC_TIMESTAMP(), %s, %s, %s, %s)",
-                    (termo[:1000], int(total), usuario[:255] if usuario else None, ip[:45] if ip else None),
+                    "INSERT INTO auditoria_buscas (criado_em, termo, total_resultados, usuario, ip, filtros) "
+                    "VALUES (UTC_TIMESTAMP(), %s, %s, %s, %s, %s)",
+                    (termo[:1000], int(total), usuario[:255] if usuario else None, ip[:45] if ip else None,
+                     filtros[:500] if filtros else None),
                 )
     except Exception as e:
         print(f"[Auditoria] Não consegui registrar a busca: {e}")
 
 
-def registrar_busca(termo, total, usuario=None, ip=None):
-    """Dispara a gravação e volta na hora."""
-    threading.Thread(target=_gravar, args=(termo, total, usuario, ip), daemon=True).start()
+def registrar_busca(termo, total, usuario=None, ip=None, filtros=None):
+    """Dispara a gravação e volta na hora. `filtros` é o texto das facetas
+    ativas (ex.: "tipo=pdf; data=7d"), ou None."""
+    threading.Thread(target=_gravar, args=(termo, total, usuario, ip, filtros), daemon=True).start()
 
 
 def contexto_requisicao():
@@ -125,7 +132,7 @@ def listar(dias, termo, pagina=1, por_pagina=50):
             cur.execute(f"SELECT COUNT(*) AS n FROM auditoria_buscas {where}", params)
             total = cur.fetchone()["n"]
             cur.execute(
-                "SELECT criado_em, termo, total_resultados, usuario, ip "
+                "SELECT criado_em, termo, total_resultados, usuario, ip, filtros "
                 f"FROM auditoria_buscas {where} ORDER BY id DESC LIMIT %s OFFSET %s",
                 params + [int(por_pagina), (pagina - 1) * int(por_pagina)],
             )

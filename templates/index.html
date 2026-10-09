@@ -26,13 +26,37 @@
   {% if not q %}</div>{% endif %}
 
   {% if q %}
-  <main class="results-area">
+  <main class="results-area{{ '' if facetas else ' sem-facetas' }}">
     {% if erro %}
       <div class="alert alert-error">Erro ao consultar o OpenSearch: {{ erro }}</div>
     {% endif %}
 
+    <div class="results-layout">
+    {% if facetas %}
+      <aside class="facetas">
+        <form method="get" action="/" id="form-facetas">
+          <input type="hidden" name="q" value="{{ q }}">
+          {% for f in facetas %}
+            <fieldset>
+              <legend>{{ f.titulo }}</legend>
+              {% for i in f.itens %}
+                <label class="faceta-item">
+                  <input type="{{ 'radio' if f.unico else 'checkbox' }}" name="{{ f.campo }}" value="{{ i.valor }}"
+                         {{ 'checked' if i.marcado }} onchange="this.form.submit()">
+                  <span class="faceta-rotulo">{{ i.rotulo }}</span>
+                  {% if i.contagem is not none %}<span class="faceta-n">{{ i.contagem }}</span>{% endif %}
+                </label>
+              {% endfor %}
+            </fieldset>
+          {% endfor %}
+          <noscript><button type="submit" class="btn-sec">Aplicar filtros</button></noscript>
+          {% if filtrando %}<a class="limpar-filtros" href="/?q={{ q|urlencode }}">Limpar filtros</a>{% endif %}
+        </form>
+      </aside>
+    {% endif %}
+    <div class="resultados">
     {% if not erro %}
-      <div class="results-meta">{{ total }} resultado(s) para "{{ q }}"</div>
+      <div class="results-meta">{{ total }} resultado(s) para "{{ q }}"{% if filtrando %} <span class="hint">· filtrado</span>{% endif %}</div>
     {% endif %}
 
     {% for r in resultados %}
@@ -50,8 +74,10 @@
     {% endfor %}
 
     {% if not resultados and not erro %}
-      <div class="empty">Nenhum documento encontrado para "{{ q }}".</div>
+      <div class="empty">Nenhum documento encontrado para "{{ q }}".{% if filtrando %} <a href="/?q={{ q|urlencode }}">Limpar filtros</a>{% endif %}</div>
     {% endif %}
+    </div>
+    </div>
   </main>
   {% endif %}
 </div>
