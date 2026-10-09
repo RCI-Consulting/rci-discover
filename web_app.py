@@ -14,6 +14,7 @@ OpenSearch (evita expor usuário/senha do cluster no front-end).
 
 import os
 from datetime import timedelta
+from urllib.parse import quote
 
 from flask import Flask, abort, redirect, render_template, request, send_file
 from opensearchpy.exceptions import RequestError
@@ -23,6 +24,7 @@ from werkzeug.utils import secure_filename
 import acesso
 import auditoria
 import config
+import facetas
 import indices
 import jobs
 import worker
@@ -105,6 +107,8 @@ def index():
     resultados = []
     total = 0
     erro = None
+    filtros = facetas.ler_filtros(request.args)
+    lista_facetas = []
 
     try:
         if q:
@@ -148,9 +152,15 @@ def index():
                 "_source": ["nome", "caminho", "conteudo"],
             }
 
+            post_filter, aggs = facetas.montar_consulta(filtros)
+            body["aggs"] = aggs
+            if post_filter:
+                body["post_filter"] = post_filter
+
             resp = cliente.search(indices.padrao_busca(), body, ignore_unavailable=True)
             total = resp["hits"]["total"]["value"]
-            auditoria.registrar_busca(q, total, *auditoria.contexto_requisicao())
+            lista_facetas = facetas.interpretar(resp.get("aggregations"), filtros)
+            auditoria.registrar_busca(q, total, *auditoria.contexto_requisicao(), filtros=facetas.resumo_texto(filtros))
 
             for hit in resp["hits"]["hits"]:
                 fonte = hit["_source"]
@@ -174,7 +184,10 @@ def index():
     except Exception as e:
         erro = str(e)
 
-    return render_template("index.html", q=q, resultados=resultados, total=total, erro=erro)
+    return render_template(
+        "index.html", q=q, resultados=resultados, total=total, erro=erro,
+        facetas=lista_facetas, filtrando=facetas.ha_filtros(filtros),
+    )
 
 
 @app.route("/admin")
@@ -306,12 +319,29 @@ def indices_pagina():
         sucesso = f'Índice "{request.args["criado"]}" criado.'
     if request.args.get("apagado"):
         sucesso = f'Índice "{request.args["apagado"]}" apagado.'
+    if request.args.get("reindexado"):
+        n = request.args.get("n", 0, type=int)
+        sem_arquivo = request.args.get("sem_arquivo", 0, type=int)
+        ja_na_fila = request.args.get("ja_na_fila", 0, type=int)
+        sucesso = f'Índice "{request.args["reindexado"]}": {n} documento(s) enviados para a fila de indexação'
+        if ja_na_fila:
+            sucesso += f", {ja_na_fila} já estavam na fila"
+        if sem_arquivo:
+            sucesso += f", {sem_arquivo} sem o arquivo original no servidor (precisam ser enviados de novo)"
+        sucesso += "."
 
     lista = []
     try:
         lista = _listar_indices()
     except Exception as e:
         erro = erro or f"Não consegui listar os índices no OpenSearch: {e}"
+
+    try:
+        pendentes = cliente.contar_desatualizados(indices.padrao_busca()) if lista else {}
+    except Exception:
+        pendentes = {}
+    for i in lista:
+        i["pendentes"] = pendentes.get(i["nome"], 0)
 
     return render_template(
         "indices.html",
@@ -320,6 +350,35 @@ def indices_pagina():
         sucesso=sucesso,
         nome_digitado=nome_digitado,
         prefixo=config.INDEX_PREFIX,
+    )
+
+
+@app.route("/admin/indices/<nome>/reindexar", methods=["POST"])
+def indice_reindexar(nome):
+    """Recoloca na fila os documentos do índice que ainda não têm os campos das
+    facetas (tipo e data), usando o arquivo original guardado no servidor."""
+    if not indices.eh_gerenciado(nome):
+        abort(404, "Índice não encontrado.")
+
+    enfileirados = sem_arquivo = ja_na_fila = 0
+    try:
+        for doc_id, nome_arquivo, caminho in cliente.listar_desatualizados(nome):
+            if not caminho or not os.path.isfile(caminho):
+                sem_arquivo += 1
+            elif jobs.job_ativo(nome, doc_id):
+                ja_na_fila += 1
+            else:
+                jobs.enfileirar(nome, nome_arquivo or os.path.basename(caminho), caminho, doc_id)
+                enfileirados += 1
+    except Exception as e:
+        return render_template(
+            "erro.html", titulo="Não consegui reindexar",
+            mensagem=f"Erro ao reindexar \"{indices.nome_exibicao(nome)}\": {e}",
+        ), 500
+
+    return redirect(
+        f"/admin/indices?reindexado={quote(indices.nome_exibicao(nome))}"
+        f"&n={enfileirados}&sem_arquivo={sem_arquivo}&ja_na_fila={ja_na_fila}"
     )
 
 

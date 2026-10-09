@@ -1,9 +1,16 @@
 from opensearchpy import OpenSearch, helpers
+from opensearchpy.exceptions import NotFoundError
 
 import config
+import indices
+
+# Documentos indexados antes das facetas não têm `indexado_em`.
+_SEM_DATA = {"bool": {"must_not": {"exists": {"field": "indexado_em"}}}}
 
 
 class OpenSearchClient:
+
+    _mapeados = set()  # índices que já receberam os campos das facetas neste processo
 
     def __init__(self):
         self.client = OpenSearch(
@@ -52,6 +59,33 @@ class OpenSearchClient:
             raise_on_error=raise_on_error,
             stats_only=False,
         )
+
+    def garantir_mapeamento(self, index):
+        """Adiciona `tipo` e `indexado_em` ao mapeamento de um índice criado
+        antes das facetas (sem isso o OpenSearch os mapearia como texto, que
+        não serve para filtrar nem agrupar). Idempotente e feito uma vez."""
+        if index in self._mapeados:
+            return
+        try:
+            self.client.indices.put_mapping(index=index, body={"properties": indices.CAMPOS_FACETAS})
+        except NotFoundError:
+            return  # índice apagado no meio do caminho: deixa o index() reportar
+        self._mapeados.add(index)
+
+    def contar_desatualizados(self, padrao):
+        """{índice: quantos documentos ainda não têm os campos das facetas}."""
+        resp = self.client.search(
+            index=padrao,
+            body={"size": 0, "query": _SEM_DATA, "aggs": {"i": {"terms": {"field": "_index", "size": 100}}}},
+            ignore_unavailable=True,
+        )
+        return {b["key"]: b["doc_count"] for b in resp["aggregations"]["i"]["buckets"]}
+
+    def listar_desatualizados(self, index):
+        """Gera (id, nome, caminho) dos documentos sem os campos das facetas."""
+        for hit in helpers.scan(self.client, index=index, query={"query": _SEM_DATA}, _source=["nome", "caminho"]):
+            fonte = hit.get("_source", {})
+            yield hit["_id"], fonte.get("nome"), fonte.get("caminho")
 
     def criar_indice(self, index, body):
         return self.client.indices.create(index=index, body=body)

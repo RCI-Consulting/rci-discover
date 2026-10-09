@@ -229,3 +229,17 @@ Contra um OpenSearch descartável (container local), um Docling falso com atraso
 
 ## Arquivos
 - Novos: `acesso.py`, `templates/auditoria.html`, `templates/_admin_abas.html`. Alterados: `web_app.py` (rotas em `/admin`, redirects, bloqueio 403), `auditoria.py` (consultas), `templates/_topbar.html`, `fila.html`, `indices.html`, `indice_apagar.html`, `ingest.html` (links e abas), `static/style.css`.
+
+09/10/2026 (2)
+
+# Facetas da busca (filtros laterais) e botão Reindexar
+- A tela de resultados ganhou uma **coluna de filtros à esquerda**, com contagem em cada opção: **Índice**, **Tipo de arquivo** (PDF, DOCX…) e **Indexado em** (últimas 24 h, 7/30 dias, último ano). Marcar/desmarcar aplica na hora; "Limpar filtros" volta ao conjunto completo. Em tela estreita os filtros ficam acima dos resultados.
+- **Como contam** (`facetas.py`): cada grupo mostra as contagens considerando os filtros dos *outros* grupos, mas não o dele. Escolher "PDF" não esconde "DOCX": você vê quantos resultados teria ao trocar ou somar. Índice e tipo aceitam várias opções (OU); a data é uma só. Valores vindos da URL são validados (índice só se for gerenciado, tipo só `a-z0-9`, data só as faixas conhecidas).
+- **Campos novos nos documentos:** `tipo` (extensão em minúsculo; `outro` se não tiver) e `indexado_em` (data UTC). Índices novos já nascem com eles; nos índices existentes o app adiciona os campos ao mapeamento sozinho (`put_mapping`) na primeira indexação.
+- **Documentos antigos não têm esses campos**, então não entram nas facetas de tipo e data até serem reindexados. O índice continua aparecendo normalmente.
+- **Botão Reindexar** (`/admin/indices`): a nova coluna **Desatualizados** mostra quantos documentos de cada índice ainda não têm `tipo`/`indexado_em`. Reindexar recoloca esses documentos na fila usando o arquivo original guardado no servidor (não precisa enviar de novo) e sobrescreve o mesmo documento (mesmo `_id`). Arquivos que não existem mais no servidor são só contados e avisados — esses precisam ser enviados de novo. Reprocessa pelo Docling, então demora como um upload normal.
+- **Auditoria:** a tabela `auditoria_buscas` ganhou a coluna `filtros` (ex.: `tipo=pdf; data=7d`), criada sozinha em tabelas antigas, e a tela de auditoria mostra uma coluna **Filtros**.
+- **A conferir no primeiro deploy:** abrir uma busca e ver se as facetas aparecem; depois de reindexar, `tipo` e `indexado_em` devem aparecer no Dev Tools (`GET rci-*,documentos/_mapping`). Se alguma busca der erro de agregação, mande a mensagem.
+
+## Arquivos
+- Novo: `facetas.py`. Alterados: `web_app.py` (busca com `post_filter`/`aggs`, rota `/admin/indices/<nome>/reindexar`), `opensearch_client.py` (`garantir_mapeamento`, `contar_desatualizados`, `listar_desatualizados`), `docling_service.py` (grava `tipo` e `indexado_em`), `indices.py` (mapeamento), `auditoria.py` (coluna `filtros`), `templates/index.html`, `indices.html`, `auditoria.html`, `static/style.css`.

@@ -14,6 +14,13 @@ import config
 # Nome informado pelo usuário (sem o prefixo)
 _NOME_VALIDO = re.compile(r"^[a-z0-9][a-z0-9_-]{1,49}$")
 
+# Campos usados pelas facetas da busca. Índices criados antes deles recebem
+# esses campos via put_mapping (OpenSearchClient.garantir_mapeamento).
+CAMPOS_FACETAS = {
+    "tipo": {"type": "keyword"},
+    "indexado_em": {"type": "date"},
+}
+
 MAPEAMENTO = {
     "settings": {"index": {"number_of_shards": 1}},
     "mappings": {
@@ -21,6 +28,7 @@ MAPEAMENTO = {
             "nome": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 512}}},
             "caminho": {"type": "keyword"},
             "conteudo": {"type": "text"},
+            **CAMPOS_FACETAS,
         }
     },
 }

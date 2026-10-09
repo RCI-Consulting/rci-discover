@@ -765,3 +765,35 @@ code { background: var(--rci-bg-soft); border-radius: 4px; padding: 1px 5px; fon
 
 .paginacao { display: flex; justify-content: center; align-items: center; gap: 16px; margin-top: 16px; }
 .paginacao a { font-size: 13.5px; }
+
+/* Facetas da busca (filtros laterais) */
+.results-area { max-width: 1000px; }
+.results-area.sem-facetas { max-width: 720px; }
+
+.results-layout { display: flex; align-items: flex-start; gap: 36px; }
+.resultados { flex: 1; min-width: 0; max-width: 720px; }
+
+.facetas { flex: none; width: 210px; font-size: 13.5px; }
+.facetas fieldset { border: none; margin: 0 0 18px 0; padding: 0; }
+.facetas legend {
+  padding: 0;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--rci-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.faceta-item { display: flex; align-items: baseline; gap: 8px; padding: 3px 0; cursor: pointer; color: var(--rci-ink); }
+.faceta-item input { margin: 0; accent-color: var(--rci-blue); }
+.faceta-rotulo { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.faceta-n { color: var(--rci-text-muted); font-size: 12.5px; }
+.limpar-filtros { font-size: 13px; }
+
+@media (max-width: 860px) {
+  .results-layout { flex-direction: column; gap: 8px; }
+  .facetas { width: 100%; }
+  .facetas fieldset { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-bottom: 10px; }
+  .facetas legend { width: 100%; }
+}
