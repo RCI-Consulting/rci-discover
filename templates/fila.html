@@ -3,8 +3,9 @@
 {% block head_extra %}{% if ativos %}<meta http-equiv="refresh" content="5">{% endif %}{% endblock %}
 {% block content %}
 <div class="page is-results">
-  {% set ativo = 'fila' %}
+  {% set ativo = 'admin' %}{% set aba = 'fila' %}
   {% include '_topbar.html' %}
+  {% include '_admin_abas.html' %}
 
   <main class="tabela-area">
     <div class="tabela-header">
@@ -17,7 +18,7 @@
         </p>
       </div>
       {% if contagem.get('concluido') %}
-        <form method="post" action="/fila/limpar">
+        <form method="post" action="/admin/fila/limpar">
           <button type="submit" class="btn-sec">Limpar concluídos</button>
         </form>
       {% endif %}
@@ -45,7 +46,7 @@
               <td>{{ j.criado_local.strftime('%d/%m %H:%M:%S') }}</td>
               <td>
                 {% if j.status == 'erro' %}
-                  <form method="post" action="/fila/{{ j.id }}/repetir">
+                  <form method="post" action="/admin/fila/{{ j.id }}/repetir">
                     <button type="submit" class="btn-sec">Tentar novamente</button>
                   </form>
                 {% endif %}
@@ -55,7 +56,7 @@
         </tbody>
       </table>
     {% elif not erro %}
-      <div class="empty">Nenhum documento na fila. <a href="/ingest">Adicionar documento</a></div>
+      <div class="empty">Nenhum documento na fila. <a href="/admin/documentos">Adicionar documento</a></div>
     {% endif %}
   </main>
 </div>

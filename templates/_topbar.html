@@ -4,8 +4,6 @@
   </a>
   <nav class="topnav">
     <a href="/"{% if ativo == 'buscar' %} class="active"{% endif %}>Buscar</a>
-    <a href="/ingest"{% if ativo == 'ingest' %} class="active"{% endif %}>Adicionar documento</a>
-    <a href="/fila"{% if ativo == 'fila' %} class="active"{% endif %}>Fila</a>
-    <a href="/indices"{% if ativo == 'indices' %} class="active"{% endif %}>Índices</a>
+    {% if eh_admin %}<a href="/admin"{% if ativo == 'admin' %} class="active"{% endif %}>Administração</a>{% endif %}
   </nav>
 </header>

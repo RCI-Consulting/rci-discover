@@ -216,3 +216,16 @@ Contra um OpenSearch descartável (container local), um Docling falso com atraso
 - Sintoma: ao trocar de página o menu mudava de lado — na home ficava à esquerda (a marca some do topo porque já aparece grande no centro) e nas demais páginas ia para a direita, com a marca à esquerda.
 - `static/style.css` : a barra do topo alinha tudo à esquerda (`justify-content: flex-start` com espaçamento único) e o botão **RCISearch** (volta para a home) fica colado no menu. Na home a marca do topo fica `visibility: hidden` em vez de `display: none`, então ocupa o mesmo lugar e o menu **não muda de posição** entre as páginas. Em tela estreita o menu desce para baixo da marca, também à esquerda.
 - Medido em 7 páginas (home, busca, fila, índices, upload, preview, erro 404): em 1200 px a marca fica em x=32 e o menu em x=187 em todas; sem rolagem horizontal.
+
+09/10/2026
+
+# Área de administração (`/admin`) e tela de auditoria
+- O menu do topo agora tem só **Buscar** e **Administração**. As telas de gestão foram para dentro de `/admin`, com abas: **Índices**, **Adicionar documento**, **Fila** e **Auditoria**.
+- Endereços novos: `/admin/indices`, `/admin/documentos` (antigo `/ingest`), `/admin/fila`, `/admin/auditoria`. Os endereços antigos (`/ingest`, `/fila`, `/indices`) redirecionam (308, mantém o método), então links e favoritos continuam funcionando.
+- **Auditoria** (`/admin/auditoria`): lê a tabela `auditoria_buscas`. Mostra totais (buscas, termos diferentes, buscas sem resultado), os **termos mais buscados**, os termos **sem resultado** (o que falta indexar) e o histórico paginado (50 por página) com data/hora no fuso de Brasília, termo, resultados, usuário e IP. Filtros: período (24 h, 7/30/90 dias, tudo) e termo contendo o texto (`%` e `_` valem como texto). Termos sempre escapados na tela.
+- **Controle de acesso:** `acesso.py` tem `eh_admin()`, usado por todas as rotas `/admin` (responde 403 com página amigável) e pelo link do menu. **Hoje ela libera todo mundo**, porque o app roda só na rede interna e ainda não há login. Quando o login com Microsoft entrar (PR #3), só essa função muda, passando a conferir o papel/grupo do usuário (App Role do Entra ID).
+- **Enquanto não houver login, `/admin` está aberto para quem alcançar o servidor**, inclusive apagar índices. Não exponha o app fora da rede interna antes de ligar o controle de acesso.
+- Se o MySQL estiver fora, a tela de auditoria abre com um aviso em vez de quebrar.
+
+## Arquivos
+- Novos: `acesso.py`, `templates/auditoria.html`, `templates/_admin_abas.html`. Alterados: `web_app.py` (rotas em `/admin`, redirects, bloqueio 403), `auditoria.py` (consultas), `templates/_topbar.html`, `fila.html`, `indices.html`, `indice_apagar.html`, `ingest.html` (links e abas), `static/style.css`.
