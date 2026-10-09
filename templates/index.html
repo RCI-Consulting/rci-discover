@@ -11,6 +11,7 @@
     </a>
   {% endif %}
 
+    {% if q %}<div class="grade-3 linha-busca"><div></div><div class="coluna-centro">{% endif %}
     <form method="get" action="/" class="search-form" role="search">
       <div class="search-box">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -22,18 +23,14 @@
       </div>
       <button type="submit" class="search-btn">Buscar</button>
     </form>
+    {% if q %}</div><div></div></div>{% endif %}
 
   {% if not q %}</div>{% endif %}
 
   {% if q %}
-  <main class="results-area{{ '' if facetas else ' sem-facetas' }}">
-    {% if erro %}
-      <div class="alert alert-error">Erro ao consultar o OpenSearch: {{ erro }}</div>
-    {% endif %}
-
-    <div class="results-layout">
+  <main class="grade-3 results-area">
+    <aside class="facetas" aria-label="Filtros">
     {% if facetas %}
-      <aside class="facetas">
         <form method="get" action="/" id="form-facetas">
           <input type="hidden" name="q" value="{{ q }}">
           {% for f in facetas %}
@@ -52,9 +49,13 @@
           <noscript><button type="submit" class="btn-sec">Aplicar filtros</button></noscript>
           {% if filtrando %}<a class="limpar-filtros" href="/?q={{ q|urlencode }}">Limpar filtros</a>{% endif %}
         </form>
-      </aside>
     {% endif %}
+    </aside>
+
     <div class="resultados">
+    {% if erro %}
+      <div class="alert alert-error">Erro ao consultar o OpenSearch: {{ erro }}</div>
+    {% endif %}
     {% if not erro %}
       <div class="results-meta">{{ total }} resultado(s) para "{{ q }}"{% if filtrando %} <span class="hint">· filtrado</span>{% endif %}</div>
     {% endif %}
@@ -77,7 +78,8 @@
       <div class="empty">Nenhum documento encontrado para "{{ q }}".{% if filtrando %} <a href="/?q={{ q|urlencode }}">Limpar filtros</a>{% endif %}</div>
     {% endif %}
     </div>
-    </div>
+
+    <aside class="coluna-direita" aria-hidden="true"></aside>
   </main>
   {% endif %}
 </div>
