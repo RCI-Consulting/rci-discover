@@ -260,3 +260,33 @@ Contra um OpenSearch descartável (container local), um Docling falso com atraso
 - **Favicon:** ícone da aba com a logo clara (versão "branco" da marca, `#F5EEDB`) sobre um **quadrado azul arredondado**. Usei o fundo azul porque a logo clara sozinha, sobre transparente, some em abas claras. `static/favicon.ico` (16 a 256 px), `static/img/favicon-32.png` e `apple-touch-icon.png` (180 px, atalho no celular). O app responde também em `/favicon.ico`, onde os navegadores procuram por padrão.
 - **Arquivos gerados** dos PNGs da marca (3939×3939 px, com muita margem transparente): `static/img/rci-logo-azul.png` (recortada e reduzida para 360 px de largura, 12 KB). Os PNGs originais continuam na pasta `images/`, fora do Git.
 - Alterados: `templates/_topbar.html`, `base.html`, `preview_erro.html`, `static/style.css` (regra `.home-btn`), `web_app.py` (rota `/favicon.ico`).
+
+13/10/2026 (3)
+
+# Projetos (grupos de índices com busca própria)
+- Um **projeto** agrupa vários índices e tem uma **página de busca própria**, como os projetos do Watson Explorer. Um índice pode estar em **vários projetos**. A busca geral (`/`, "Buscar") continua pesquisando em todos os índices, como antes.
+- **Telas:** `/projetos` lista os projetos em cards; `/p/<endereço>` é a busca de um projeto (caixa de busca, filtros e resultados só dos índices dele, com o nome e a descrição do projeto). O menu do topo ganhou **Projetos**.
+- **Administração → Projetos** (`/admin/projetos`): criar, editar (nome, descrição, índices por checkbox) e apagar. O **endereço** (`/p/...`) vem do nome (sem acento, minúsculo, com hífen; `-2`, `-3` se já existir) e **não muda ao renomear**, para links salvos continuarem valendo. Apagar um projeto remove só o projeto: índices e documentos não são tocados. Apagar um **índice** o tira de todos os projetos.
+- **Dados:** tabelas `projetos` e `projeto_indices` no MySQL (criadas sozinhas no primeiro uso). O vínculo guarda o nome real do índice; índice que não existe mais no OpenSearch é ignorado na busca.
+- **Busca no projeto:** o alvo é a lista de índices do projeto (nomes validados como índices gerenciados). Projeto sem índices não consulta o OpenSearch e avisa na tela. As facetas (Índice, Tipo, Data) valem só dentro do projeto.
+- **Auditoria:** buscas feitas num projeto gravam `projeto=<endereço>` na coluna *Filtros*, junto dos filtros de facetas.
+- **Se o MySQL estiver fora:** `/p/<projeto>` mostra uma página de erro amigável (503) avisando que a busca geral continua; `/projetos` e a administração abrem com aviso; a busca geral não é afetada.
+- **Ainda não existe:** restrição de quem vê cada projeto. Quando o login entrar (PR #3), dá para ligar projetos a grupos/papéis do Entra ID.
+
+## Arquivos
+- Novos: `projetos.py`, `templates/projetos.html`, `projetos_admin.html`, `projeto_form.html`, `projeto_apagar.html`. Alterados: `web_app.py` (busca separada em `_pesquisar`/`_tela_busca`, rotas `/projetos`, `/p/<slug>` e `/admin/projetos...`), `templates/index.html`, `_topbar.html`, `_admin_abas.html`, `static/style.css`.
+
+13/10/2026 (4)
+
+# Autocomplete, sugestões e dicionário (como no Watson Explorer)
+- **Pesquisa feita antes:** no Watson Explorer o autocomplete é um *dicionário* (frases extraídas das coleções ou de uma lista) e a expansão por sinônimos usa dicionários de termos/siglas aplicados na hora da busca, sem reindexar. No OpenSearch **não é preciso montar um dicionário para ter autocomplete**: dá para usar o que já existe (nomes de documentos e buscas anteriores). O dicionário manual só acrescenta o que o índice não sabe: **siglas, nomes internos e sinônimos**. Por isso a solução tem as duas coisas.
+- **Autocomplete** (`static/autocomplete.js`, endpoint `/sugestoes`): a partir de 2 letras, lista até 8 sugestões, com ↑ ↓ Enter Esc e mouse. Três fontes: **dicionário** (termo preferido; digitar a sigla sugere o nome completo), **buscas populares** (o que outras pessoas já pesquisaram e acharam algo) e **nomes de documentos** que começam com o texto (vai direto para o preview). Dentro de um projeto, vale só o projeto. Se uma fonte falhar (MySQL ou OpenSearch fora), as outras continuam.
+- **Você quis dizer:** quando a busca acha 3 resultados ou menos, o app pergunta ao OpenSearch (phrase suggester sobre `conteudo`) se há uma correção e mostra "Você quis dizer: …" com link. É um pedido separado e opcional: se falhar, a busca não é afetada.
+- **Buscas populares:** quando uma busca não acha nada, a tela sugere as buscas mais repetidas que deram resultado.
+- **Dicionário** (Administração → Dicionário, tabela `dicionario_termos`): termo preferido + sinônimos/siglas (ex.: `acordo de confidencialidade` = `NDA, termo de sigilo`). **Expansão na busca:** se a consulta tem uma das formas (palavra inteira, sem diferenciar maiúsculas), a busca também procura pelas outras, e a tela mostra "Também buscando por: …". Vale na hora, **sem reindexar**; cache de 30 s.
+- **Privacidade (LGPD):** buscas viram sugestão para outras pessoas só se foram feitas **pelo menos `SUGESTOES_MIN_BUSCAS` vezes** (padrão 2) nos últimos 180 dias, e nunca se tiverem e-mail ou sequência longa de números (CPF, CNPJ, telefone). Para sugerir tudo que já achou resultado, use `SUGESTOES_MIN_BUSCAS=1`.
+- **Ainda não validado contra o OpenSearch real:** a consulta de nomes (`match_phrase_prefix`) e o phrase suggester seguem a documentação, mas só foram testados com cliente simulado. Conferir no primeiro deploy: digitar 3 letras de um nome de documento, e buscar uma palavra com erro de digitação que não ache nada.
+- **Limites conhecidos:** o dicionário não é separado por projeto (vale para todos); a expansão não ignora acentos ao procurar a forma na consulta (o autocomplete ignora); sinônimos não entram na busca dentro de `suggest`.
+
+## Arquivos
+- Novos: `dicionario.py`, `sugestoes.py`, `static/autocomplete.js`, `templates/dicionario_admin.html`, `dicionario_form.html`. Alterados: `web_app.py` (`/sugestoes`, rotas `/admin/dicionario...`, expansão e correção na busca), `auditoria.py` (`termos_populares`), `utils.py` (`escapar_destaque`), `config.py` (`SUGESTOES_MIN_BUSCAS`), `templates/index.html`, `_admin_abas.html`, `static/style.css`.

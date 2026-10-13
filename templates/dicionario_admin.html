@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Dicionário — Administração — RCI Search{% endblock %}
+{% block content %}
+<div class="page is-results">
+  {% set ativo = 'admin' %}{% set aba = 'dicionario' %}
+  {% include '_topbar.html' %}
+  {% include '_admin_abas.html' %}
+
+  <main class="tabela-area">
+    <h1>Dicionário</h1>
+    <p class="hint">
+      Vocabulário da empresa: siglas, nomes e sinônimos. Cada termo aparece no <strong>autocomplete</strong>
+      (também ao digitar um dos sinônimos) e faz a busca procurar pelas formas equivalentes.
+      Exemplo: termo <code>acordo de confidencialidade</code>, sinônimos <code>NDA, termo de sigilo</code>. Vale na hora, sem reindexar.
+    </p>
+
+    {% if erro %}<div class="alert alert-error">{{ erro }}</div>{% endif %}
+    {% if sucesso %}<div class="alert alert-ok">{{ sucesso }}</div>{% endif %}
+
+    <form method="post" action="/admin/dicionario" class="form-dicionario">
+      <input type="text" name="termo" value="{{ termo }}" maxlength="{{ limite_termo }}" placeholder="Termo preferido" required>
+      <input type="text" name="sinonimos" value="{{ sinonimos }}" maxlength="{{ limite_sinonimos }}" placeholder="Sinônimos ou siglas, separados por vírgula (opcional)">
+      <button type="submit" class="btn-prim">Adicionar</button>
+    </form>
+
+    {% if entradas %}
+      <table class="tabela">
+        <thead><tr><th>Termo</th><th>Sinônimos e siglas</th><th></th></tr></thead>
+        <tbody>
+          {% for e in entradas %}
+            <tr>
+              <td><strong>{{ e.termo }}</strong></td>
+              <td>{% if e.sinonimos %}{{ e.sinonimos }}{% else %}<span class="hint">—</span>{% endif %}</td>
+              <td class="nowrap">
+                <a href="/admin/dicionario/{{ e.id }}">Editar</a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% elif not erro %}
+      <div class="empty">Nenhum termo ainda. Adicione o primeiro acima.</div>
+    {% endif %}
+  </main>
+</div>
+{% endblock %}

@@ -52,3 +52,8 @@ FUSO_HORAS = int(os.getenv("FUSO_HORAS", "-3"))
 # O IP do cliente é lido do X-Forwarded-For nesse nível; 0 desliga a leitura
 # (use 0 se o app for exposto direto, senão o cabeçalho poderia ser forjado).
 PROXIES_CONFIAVEIS = int(os.getenv("PROXIES_CONFIAVEIS", "1"))
+
+# Autocomplete: uma busca anterior só vira sugestão para os outros usuários se
+# foi feita pelo menos essa quantidade de vezes (evita expor o que uma única
+# pessoa digitou). 1 = sugere qualquer busca que já achou algo.
+SUGESTOES_MIN_BUSCAS = int(os.getenv("SUGESTOES_MIN_BUSCAS", "2"))

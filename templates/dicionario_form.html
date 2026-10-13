@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Editar termo — RCI Search{% endblock %}
+{% block content %}
+<div class="page is-results">
+  {% set ativo = 'admin' %}{% set aba = 'dicionario' %}
+  {% include '_topbar.html' %}
+  {% include '_admin_abas.html' %}
+
+  <main class="tabela-area">
+    <h1>Editar termo</h1>
+
+    {% if erro %}<div class="alert alert-error">{{ erro }}</div>{% endif %}
+
+    <form method="post" class="form-projeto">
+      <label class="campo">
+        <span>Termo preferido</span>
+        <input type="text" name="termo" value="{{ termo }}" maxlength="{{ limite_termo }}" required autofocus>
+      </label>
+      <label class="campo">
+        <span>Sinônimos e siglas <span class="hint">(separados por vírgula)</span></span>
+        <textarea name="sinonimos" rows="3" maxlength="{{ limite_sinonimos }}">{{ sinonimos }}</textarea>
+      </label>
+      <div class="acoes-form">
+        <button type="submit" class="btn-prim">Salvar</button>
+        <a href="/admin/dicionario" class="voltar-btn">Cancelar</a>
+      </div>
+    </form>
+
+    <form method="post" action="/admin/dicionario/{{ entrada.id }}/apagar" class="apagar-termo">
+      <button type="submit" class="btn-perigo" onclick="return confirm('Apagar este termo do dicionário?')">Apagar termo</button>
+    </form>
+  </main>
+</div>
+{% endblock %}

@@ -5,6 +5,7 @@ A gravação roda em segundo plano e nunca propaga erro: se o banco estiver
 fora ou lento, a busca do usuário continua normal e a falha só vai pro log.
 """
 
+import re
 import threading
 
 from flask import request, session
@@ -137,3 +138,37 @@ def listar(dias, termo, pagina=1, por_pagina=50):
                 params + [int(por_pagina), (pagina - 1) * int(por_pagina)],
             )
             return cur.fetchall(), total
+
+
+# ---- Sugestões (autocomplete e "buscas populares") -------------------------
+
+def _termo_sensivel(termo):
+    """E-mail ou sequência longa de dígitos (CPF, CNPJ, telefone): nunca vira
+    sugestão para outras pessoas, mesmo que tenha sido muito buscado."""
+    return "@" in termo or bool(re.search(r"\d{7,}|(?:\d[\s.\-/]*){9,}", termo))
+
+
+def termos_populares(prefixo=None, slug=None, minimo=2, limite=5):
+    """Buscas anteriores que acharam algo, da mais repetida para a menos. Só
+    entram termos buscados pelo menos `minimo` vezes (um termo digitado uma vez
+    por uma pessoa não é exposto às outras). `slug` limita às buscas feitas
+    naquele projeto; `prefixo` ao que começa com o texto."""
+    condicoes = ["total_resultados > 0", "criado_em >= UTC_TIMESTAMP() - INTERVAL 180 DAY"]
+    params = []
+    if prefixo:
+        escapado = prefixo.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        condicoes.append("termo LIKE %s")
+        params.append(f"{escapado}%")
+    if slug:
+        condicoes.append("(filtros = %s OR filtros LIKE %s)")
+        params += [f"projeto={slug}", f"projeto={slug};%"]
+    with conectar() as con:
+        _garantir_tabela(con)
+        with con.cursor() as cur:
+            cur.execute(
+                f"SELECT termo, COUNT(*) AS vezes FROM auditoria_buscas WHERE {' AND '.join(condicoes)} "
+                "GROUP BY termo HAVING COUNT(*) >= %s ORDER BY vezes DESC, MAX(id) DESC LIMIT %s",
+                params + [int(minimo), int(limite) * 3],
+            )
+            linhas = cur.fetchall()
+    return [l["termo"] for l in linhas if not _termo_sensivel(l["termo"])][: int(limite)]
