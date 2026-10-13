@@ -252,3 +252,11 @@ Contra um OpenSearch descartável (container local), um Docling falso com atraso
 - **Telas menores:** abaixo de 1200 px a coluna da direita some e filtros + resultados ficam juntos à esquerda; abaixo de 860 px os filtros passam para cima dos resultados.
 - Medido em 1920, 1366, 1200, 1150 e 700 px: em 1200 px ou mais o centro dos resultados coincide com o centro da tela (diferença 0 px); sem rolagem horizontal; filtros em x=32, igual à marca.
 - Só `templates/index.html` e `static/style.css` mudaram (sem mudança de rotas ou de lógica).
+
+13/10/2026 (2)
+
+# Logo da RCI como botão home e favicon
+- **Botão home:** o texto "RCISearch" do topo foi trocado pela **logo azul da RCI**, fixa no canto esquerdo, que leva para a página inicial. Ela aparece em **todas as telas** (inclusive na home), sempre com o mesmo tamanho (72×30 px) e no mesmo lugar, então o menu ao lado também não muda de posição entre as páginas (medido em home, busca, administração e erro 404: logo em x=32 e menu em x=132 em todas). O "RCISearch" grande no centro da home continua.
+- **Favicon:** ícone da aba com a logo clara (versão "branco" da marca, `#F5EEDB`) sobre um **quadrado azul arredondado**. Usei o fundo azul porque a logo clara sozinha, sobre transparente, some em abas claras. `static/favicon.ico` (16 a 256 px), `static/img/favicon-32.png` e `apple-touch-icon.png` (180 px, atalho no celular). O app responde também em `/favicon.ico`, onde os navegadores procuram por padrão.
+- **Arquivos gerados** dos PNGs da marca (3939×3939 px, com muita margem transparente): `static/img/rci-logo-azul.png` (recortada e reduzida para 360 px de largura, 12 KB). Os PNGs originais continuam na pasta `images/`, fora do Git.
+- Alterados: `templates/_topbar.html`, `base.html`, `preview_erro.html`, `static/style.css` (regra `.home-btn`), `web_app.py` (rota `/favicon.ico`).

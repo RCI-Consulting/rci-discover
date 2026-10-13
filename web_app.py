@@ -16,7 +16,7 @@ import os
 from datetime import timedelta
 from urllib.parse import quote
 
-from flask import Flask, abort, redirect, render_template, request, send_file
+from flask import Flask, abort, redirect, render_template, request, send_file, send_from_directory
 from opensearchpy.exceptions import RequestError
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import secure_filename
@@ -85,6 +85,12 @@ def contexto_comum():
 def proteger_admin():
     if request.path.startswith("/admin") and not acesso.eh_admin():
         abort(403)
+
+
+@app.route("/favicon.ico")
+def favicon():
+    """Os navegadores pedem /favicon.ico na raiz, mesmo sem <link> na página."""
+    return send_from_directory(app.static_folder, "favicon.ico", mimetype="image/vnd.microsoft.icon", max_age=86400)
 
 
 @app.errorhandler(403)
