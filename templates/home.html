@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}RCI Search{% endblock %}
+{% block content %}
+<div class="page is-results">
+  {% set ativo = 'home' %}
+  {% include '_topbar.html' %}
+
+  <main class="boas-vindas">
+    <h1>Bem-vindo ao <span class="brand-rci">RCI</span><span class="brand-search">Search</span></h1>
+    <p class="boas-vindas-sub">Comece a explorar</p>
+
+    <div class="home-cards">
+      <a class="home-card" href="/busca">
+        <span class="home-card-icone" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+        </span>
+        <h2>Busca geral</h2>
+        <p>Pesquise em todos os documentos de todos os índices.</p>
+        <span class="home-card-ir">Buscar em tudo &rarr;</span>
+      </a>
+
+      <a class="home-card" href="/projetos">
+        <span class="home-card-icone" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+          </svg>
+        </span>
+        <h2>Projetos
+          {% if qtd_projetos is not none %}
+            <span class="home-card-n">{{ qtd_projetos }} projeto{{ '' if qtd_projetos == 1 else 's' }}</span>
+          {% endif %}
+        </h2>
+        <p>Escolha um projeto e pesquise só nos índices dele.</p>
+        <span class="home-card-ir">Ver projetos &rarr;</span>
+      </a>
+
+      {% if eh_admin %}
+        <a class="home-card" href="/admin">
+          <span class="home-card-icone" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path>
+            </svg>
+          </span>
+          <h2>Administração</h2>
+          <p>Gerencie índices, projetos, dicionário e documentos.</p>
+          <span class="home-card-ir">Abrir administração &rarr;</span>
+        </a>
+      {% endif %}
+    </div>
+  </main>
+</div>
+{% endblock %}

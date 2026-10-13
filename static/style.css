@@ -922,3 +922,63 @@ code { background: var(--rci-bg-soft); border-radius: 4px; padding: 1px 5px; fon
 }
 .form-dicionario input[name="sinonimos"] { flex: 2 1 280px; }
 .apagar-termo { margin-top: 28px; }
+
+/* Página inicial (boas-vindas) */
+.boas-vindas {
+  flex: 1;
+  width: 100%;
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 72px 20px 60px;
+  text-align: center;
+}
+.boas-vindas h1 {
+  margin: 0 0 6px 0;
+  font-family: "Atkinson Hyperlegible", Arial, sans-serif;
+  font-size: 34px;
+  font-weight: 700;
+  color: var(--rci-navy);
+}
+.boas-vindas h1 .brand-search { font-weight: 400; }
+.boas-vindas-sub { margin: 0; font-size: 17px; color: var(--rci-text-muted); }
+
+.home-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 18px;
+  margin: 40px auto 0;
+  text-align: left;
+}
+.home-card {
+  display: flex;
+  flex-direction: column;
+  padding: 22px 22px 20px;
+  background: var(--rci-bg-soft);
+  border: 1px solid var(--rci-border);
+  border-radius: 14px;
+  text-decoration: none;
+  color: var(--rci-ink);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.home-card:hover,
+.home-card:focus-visible { border-color: var(--rci-blue); box-shadow: 0 4px 14px rgba(0, 79, 254, 0.14); outline: none; }
+.home-card-icone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  margin-bottom: 14px;
+  border-radius: 12px;
+  background: #e3ebff;
+  color: var(--rci-blue);
+}
+.home-card h2 { margin: 0 0 6px 0; font-size: 18px; color: var(--rci-navy); }
+.home-card-n { margin-left: 6px; font-size: 12px; font-weight: 400; color: var(--rci-text-muted); }
+.home-card p { margin: 0 0 16px 0; font-size: 14px; line-height: 1.5; color: var(--rci-text-muted); }
+.home-card-ir { margin-top: auto; font-size: 14px; font-weight: 600; color: var(--rci-blue); }
+
+@media (max-width: 600px) {
+  .boas-vindas { padding-top: 40px; }
+  .boas-vindas h1 { font-size: 27px; }
+}
