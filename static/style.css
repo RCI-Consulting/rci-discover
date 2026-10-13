@@ -145,7 +145,11 @@ a { color: var(--rci-blue); }
 
 /* Home (sem query): tudo centralizado, como a home do Google */
 .page.is-home .topbar { position: absolute; top: 0; left: 0; right: 0; }
-.page.is-home .topbar .brand { visibility: hidden; }
+
+/* Botão home (logo RCI): sempre no canto esquerdo, mesmo tamanho em todas as páginas */
+.home-btn { display: flex; align-items: center; flex: none; border-radius: 6px; }
+.home-btn img { display: block; width: 72px; height: 30px; }
+.home-btn:focus-visible { outline: 2px solid var(--rci-blue); outline-offset: 4px; }
 
 .home-hero {
   flex: 1;
