@@ -16,7 +16,7 @@ import os
 from datetime import timedelta
 from urllib.parse import quote
 
-from flask import Flask, abort, redirect, render_template, request, send_file, send_from_directory
+from flask import Flask, abort, jsonify, redirect, render_template, request, send_file, send_from_directory
 from opensearchpy.exceptions import RequestError
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import secure_filename
@@ -24,13 +24,15 @@ from werkzeug.utils import secure_filename
 import acesso
 import auditoria
 import config
+import dicionario
 import facetas
 import indices
 import jobs
 import projetos
+import sugestoes
 import worker
 from opensearch_client import OpenSearchClient
-from utils import extensao, gerar_doc_id, montar_trecho, pode_embutir, renderizar_markdown
+from utils import escapar_destaque, extensao, gerar_doc_id, montar_trecho, pode_embutir, renderizar_markdown
 
 MODO_DEBUG = True
 
@@ -110,16 +112,25 @@ def nao_encontrado(e):
 
 def _pesquisar(q, alvo, projeto=None):
     """Roda a busca em `alvo` (expressão de índices) e prepara o que a tela
-    mostra: (resultados, total, facetas, filtros, erro). O `projeto`, quando
-    existe, só entra no registro da auditoria."""
+    mostra. O `projeto`, quando existe, entra no registro da auditoria e nas
+    sugestões (que ficam restritas às buscas daquele projeto)."""
     resultados = []
     total = 0
     erro = None
     filtros = facetas.ler_filtros(request.args)
     lista_facetas = []
+    expansoes = []
+    correcao = None
+    populares = []
+    slug = projeto["slug"] if projeto else None
 
     try:
         if q and alvo:
+            try:
+                expansoes = dicionario.expandir(q)
+            except Exception:
+                expansoes = []  # o dicionário é um extra: sem ele a busca segue normal
+
             # Busca melhorada com suporte a erros de digitação e flexibilidade
             body = {
                 "size": 20,
@@ -160,6 +171,12 @@ def _pesquisar(q, alvo, projeto=None):
                 "_source": ["nome", "caminho", "conteudo"],
             }
 
+            # sinônimos/siglas do dicionário: cada consulta alternativa também pontua
+            for alt in expansoes:
+                body["query"]["bool"]["should"].append({
+                    "multi_match": {"query": alt["consulta"], "fields": ["conteudo", "nome^3"], "operator": "and"}
+                })
+
             post_filter, aggs = facetas.montar_consulta(filtros)
             body["aggs"] = aggs
             if post_filter:
@@ -168,6 +185,10 @@ def _pesquisar(q, alvo, projeto=None):
             resp = cliente.search(alvo, body, ignore_unavailable=True)
             total = resp["hits"]["total"]["value"]
             lista_facetas = facetas.interpretar(resp.get("aggregations"), filtros)
+            if total <= 3:
+                correcao = sugestoes.correcao(cliente, alvo, q)
+            if total == 0:
+                populares = sugestoes.populares(slug)
             resumo = "; ".join(
                 parte for parte in (f"projeto={projeto['slug']}" if projeto else None, facetas.resumo_texto(filtros)) if parte
             )
@@ -195,16 +216,40 @@ def _pesquisar(q, alvo, projeto=None):
     except Exception as e:
         erro = str(e)
 
-    return resultados, total, lista_facetas, filtros, erro
+    if correcao:
+        correcao["destaque"] = escapar_destaque(correcao["destaque"])
+    return {
+        "resultados": resultados, "total": total, "erro": erro,
+        "facetas": lista_facetas, "filtrando": facetas.ha_filtros(filtros),
+        "expansoes": expansoes, "correcao": correcao, "populares": populares,
+    }
 
 
 def _tela_busca(q, alvo, projeto=None):
-    resultados, total, lista_facetas, filtros, erro = _pesquisar(q, alvo, projeto)
     return render_template(
-        "index.html", q=q, resultados=resultados, total=total, erro=erro,
-        facetas=lista_facetas, filtrando=facetas.ha_filtros(filtros),
-        projeto=projeto, acao=f"/p/{projeto['slug']}" if projeto else "/",
+        "index.html", q=q, projeto=projeto, acao=f"/p/{projeto['slug']}" if projeto else "/",
+        **_pesquisar(q, alvo, projeto),
     )
+
+
+@app.route("/sugestoes")
+def sugestoes_autocomplete():
+    """Sugestões para a caixa de busca enquanto o usuário digita (JSON)."""
+    prefixo = request.args.get("q", "")
+    slug = request.args.get("p", "").strip()
+    alvo = indices.padrao_busca()
+    projeto_slug = None
+    if slug:
+        try:
+            projeto = projetos.obter_por_slug(slug)
+        except Exception:
+            projeto = None
+        if projeto:
+            alvo = ",".join(projeto["indices"])
+            projeto_slug = projeto["slug"]
+    resposta = jsonify({"itens": sugestoes.autocompletar(cliente, alvo, prefixo, projeto_slug)})
+    resposta.headers["Cache-Control"] = "no-store"
+    return resposta
 
 
 @app.route("/")
@@ -485,6 +530,70 @@ def admin_projeto_apagar(projeto_id):
         projetos.apagar(projeto_id)
         return redirect("/admin/projetos?ok=apagado")
     return render_template("projeto_apagar.html", projeto=projeto)
+
+
+@app.route("/admin/dicionario", methods=["GET", "POST"])
+def admin_dicionario():
+    erro = None
+    termo = sinonimos = ""
+    if request.method == "POST":
+        termo = request.form.get("termo", "")
+        sinonimos = request.form.get("sinonimos", "")
+        try:
+            dicionario.criar(termo, sinonimos)
+            return redirect("/admin/dicionario?ok=criado")
+        except ValueError as e:
+            erro = str(e)
+        except Exception as e:
+            erro = f"Banco de dados do dicionário indisponível: {e}"
+
+    lista = []
+    try:
+        lista = dicionario.listar()
+    except Exception as e:
+        erro = erro or f"Banco de dados do dicionário indisponível: {e}"
+    mensagens = {"criado": "Termo adicionado.", "salvo": "Termo salvo.", "apagado": "Termo apagado."}
+    return render_template(
+        "dicionario_admin.html", entradas=lista, erro=erro, termo=termo, sinonimos=sinonimos,
+        sucesso=mensagens.get(request.args.get("ok")),
+        limite_termo=dicionario.LIMITE_TERMO, limite_sinonimos=dicionario.LIMITE_SINONIMOS,
+    )
+
+
+@app.route("/admin/dicionario/<int:entrada_id>", methods=["GET", "POST"])
+def admin_dicionario_editar(entrada_id):
+    try:
+        entrada = dicionario.obter(entrada_id)
+    except Exception as e:
+        return render_template("erro.html", titulo="Dicionário indisponível", mensagem=f"Banco de dados indisponível: {e}"), 503
+    if not entrada:
+        abort(404, "Termo não encontrado.")
+
+    erro = None
+    termo, sinonimos = entrada["termo"], entrada["sinonimos"] or ""
+    if request.method == "POST":
+        termo = request.form.get("termo", "")
+        sinonimos = request.form.get("sinonimos", "")
+        try:
+            dicionario.atualizar(entrada_id, termo, sinonimos)
+            return redirect("/admin/dicionario?ok=salvo")
+        except ValueError as e:
+            erro = str(e)
+        except Exception as e:
+            erro = f"Erro ao salvar: {e}"
+    return render_template(
+        "dicionario_form.html", entrada=entrada, termo=termo, sinonimos=sinonimos, erro=erro,
+        limite_termo=dicionario.LIMITE_TERMO, limite_sinonimos=dicionario.LIMITE_SINONIMOS,
+    )
+
+
+@app.route("/admin/dicionario/<int:entrada_id>/apagar", methods=["POST"])
+def admin_dicionario_apagar(entrada_id):
+    try:
+        dicionario.apagar(entrada_id)
+    except Exception as e:
+        return render_template("erro.html", titulo="Dicionário indisponível", mensagem=f"Banco de dados indisponível: {e}"), 503
+    return redirect("/admin/dicionario?ok=apagado")
 
 
 @app.route("/admin/indices/<nome>/reindexar", methods=["POST"])

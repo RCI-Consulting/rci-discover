@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}RCI Search{% endblock %}
+{% block head_extra %}<script src="{{ url_for('static', filename='autocomplete.js') }}" defer></script>{% endblock %}
 {% block content %}
 <div class="page {{ 'is-results' if q else 'is-home' }}">
   {% set ativo = 'projetos' if projeto else 'buscar' %}
@@ -25,7 +26,9 @@
           <circle cx="11" cy="11" r="7"></circle>
           <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
         </svg>
-        <input type="text" name="q" value="{{ q }}" placeholder="{{ 'Pesquisar em ' ~ projeto.nome ~ '...' if projeto else 'Pesquisar documentos...' }}" autofocus autocomplete="off">
+        <input type="text" name="q" value="{{ q }}" placeholder="{{ 'Pesquisar em ' ~ projeto.nome ~ '...' if projeto else 'Pesquisar documentos...' }}" autofocus autocomplete="off"
+               role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="lista-sugestoes"
+               data-projeto="{{ projeto.slug if projeto else '' }}">
         {% if q %}<a class="clear" href="{{ acao }}" title="Limpar busca">&times;</a>{% endif %}
       </div>
       <button type="submit" class="search-btn">Buscar</button>
@@ -68,6 +71,15 @@
       <div class="results-meta">{{ total }} resultado(s) para "{{ q }}"{% if filtrando %} <span class="hint">· filtrado</span>{% endif %}</div>
     {% endif %}
 
+    {% if correcao %}
+      <p class="correcao">Você quis dizer: <a href="{{ acao }}?q={{ correcao.texto|urlencode }}">{{ correcao.destaque|safe }}</a>?</p>
+    {% endif %}
+    {% if expansoes %}
+      <p class="expansoes">Também buscando por:
+        {% for e in expansoes %}<a href="{{ acao }}?q={{ e.consulta|urlencode }}">{{ e.consulta }}</a>{{ ', ' if not loop.last }}{% endfor %}
+      </p>
+    {% endif %}
+
     {% for r in resultados %}
       <article class="result-card">
         <h3><a href="/preview/{{ r.indice }}/{{ r.id }}">{{ r.titulo or r.nome }}</a></h3>
@@ -84,6 +96,11 @@
 
     {% if not resultados and not erro %}
       <div class="empty">Nenhum documento encontrado para "{{ q }}".{% if filtrando %} <a href="{{ acao }}?q={{ q|urlencode }}">Limpar filtros</a>{% endif %}</div>
+      {% if populares %}
+        <p class="populares">Buscas populares:
+          {% for t in populares %}<a href="{{ acao }}?q={{ t|urlencode }}">{{ t }}</a>{{ ', ' if not loop.last }}{% endfor %}
+        </p>
+      {% endif %}
     {% endif %}
     </div>
 

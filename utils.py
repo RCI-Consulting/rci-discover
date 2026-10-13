@@ -38,6 +38,12 @@ def renderizar_markdown(texto: str) -> str:
     )
 
 
+def escapar_destaque(texto: str) -> str:
+    """Escapa todo o HTML de um fragmento do OpenSearch, mantendo só as tags
+    <em>/</em> que ele usa para destacar os termos achados."""
+    return html.escape(texto).replace("&lt;em&gt;", "<em>").replace("&lt;/em&gt;", "</em>")
+
+
 # Sequência longa sem espaço (base64 de imagens antigas, URLs enormes...): não
 # quebra linha sozinha, não é legível e estoura o card da busca.
 _SEQUENCIA_LONGA = re.compile(r"\S{40,}")
@@ -52,7 +58,7 @@ def montar_trecho(destaque, conteudo: str, limite: int = 220) -> str:
     espaço são encurtadas, então o resultado pode ir direto num `|safe`.
     """
     if destaque:
-        texto = html.escape(destaque).replace("&lt;em&gt;", "<em>").replace("&lt;/em&gt;", "</em>")
+        texto = escapar_destaque(destaque)
     else:
         conteudo = conteudo or ""
         texto = html.escape(conteudo[:limite]) + ("..." if len(conteudo) > limite else "")

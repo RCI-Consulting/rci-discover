@@ -869,3 +869,56 @@ code { background: var(--rci-bg-soft); border-radius: 4px; padding: 1px 5px; fon
   cursor: pointer;
 }
 .btn-prim:hover { background: var(--rci-blue-dark); }
+
+/* Autocomplete e sugestões */
+.search-box { position: relative; }
+.sugestoes {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  margin: 0;
+  padding: 6px 0;
+  list-style: none;
+  background: #fff;
+  border: 1px solid var(--rci-border);
+  border-radius: 14px;
+  box-shadow: 0 6px 20px rgba(3, 20, 59, 0.12);
+  overflow: hidden;
+}
+.sugestoes[hidden] { display: none; }
+.sugestoes li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 18px;
+  font-size: 15px;
+  color: var(--rci-ink);
+  cursor: pointer;
+}
+.sugestoes li.ativo { background: var(--rci-bg-soft); }
+.sugestao-texto { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sugestao-texto strong { font-weight: 700; color: var(--rci-navy); }
+.sugestao-tipo { flex: none; font-size: 11.5px; color: var(--rci-text-muted); }
+.sugestao-tipo-termo { color: var(--rci-blue); }
+
+.correcao, .expansoes, .populares { margin: 0 0 14px 0; font-size: 14px; color: var(--rci-text-muted); }
+.correcao a { font-size: 15px; font-weight: 700; text-decoration: none; }
+.correcao a:hover { text-decoration: underline; }
+.correcao em { font-style: italic; }
+.expansoes a, .populares a { color: var(--rci-navy); }
+.populares { text-align: center; }
+
+.form-dicionario { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0 18px 0; }
+.form-dicionario input[type="text"] {
+  flex: 1 1 200px;
+  padding: 9px 12px;
+  border: 1px solid var(--rci-border);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 14px;
+}
+.form-dicionario input[name="sinonimos"] { flex: 2 1 280px; }
+.apagar-termo { margin-top: 28px; }
