@@ -27,6 +27,7 @@ import config
 import facetas
 import indices
 import jobs
+import projetos
 import worker
 from opensearch_client import OpenSearchClient
 from utils import extensao, gerar_doc_id, montar_trecho, pode_embutir, renderizar_markdown
@@ -107,9 +108,10 @@ def nao_encontrado(e):
     return render_template("erro.html", titulo="Não encontrado", mensagem=mensagem), 404
 
 
-@app.route("/")
-def index():
-    q = request.args.get("q", "").strip()
+def _pesquisar(q, alvo, projeto=None):
+    """Roda a busca em `alvo` (expressão de índices) e prepara o que a tela
+    mostra: (resultados, total, facetas, filtros, erro). O `projeto`, quando
+    existe, só entra no registro da auditoria."""
     resultados = []
     total = 0
     erro = None
@@ -117,7 +119,7 @@ def index():
     lista_facetas = []
 
     try:
-        if q:
+        if q and alvo:
             # Busca melhorada com suporte a erros de digitação e flexibilidade
             body = {
                 "size": 20,
@@ -163,10 +165,13 @@ def index():
             if post_filter:
                 body["post_filter"] = post_filter
 
-            resp = cliente.search(indices.padrao_busca(), body, ignore_unavailable=True)
+            resp = cliente.search(alvo, body, ignore_unavailable=True)
             total = resp["hits"]["total"]["value"]
             lista_facetas = facetas.interpretar(resp.get("aggregations"), filtros)
-            auditoria.registrar_busca(q, total, *auditoria.contexto_requisicao(), filtros=facetas.resumo_texto(filtros))
+            resumo = "; ".join(
+                parte for parte in (f"projeto={projeto['slug']}" if projeto else None, facetas.resumo_texto(filtros)) if parte
+            )
+            auditoria.registrar_busca(q, total, *auditoria.contexto_requisicao(), filtros=resumo[:500] or None)
 
             for hit in resp["hits"]["hits"]:
                 fonte = hit["_source"]
@@ -190,10 +195,49 @@ def index():
     except Exception as e:
         erro = str(e)
 
+    return resultados, total, lista_facetas, filtros, erro
+
+
+def _tela_busca(q, alvo, projeto=None):
+    resultados, total, lista_facetas, filtros, erro = _pesquisar(q, alvo, projeto)
     return render_template(
         "index.html", q=q, resultados=resultados, total=total, erro=erro,
         facetas=lista_facetas, filtrando=facetas.ha_filtros(filtros),
+        projeto=projeto, acao=f"/p/{projeto['slug']}" if projeto else "/",
     )
+
+
+@app.route("/")
+def index():
+    return _tela_busca(request.args.get("q", "").strip(), indices.padrao_busca())
+
+
+@app.route("/projetos")
+def projetos_pagina():
+    erro = None
+    lista = []
+    try:
+        lista = projetos.listar()
+        for p in lista:
+            p["qtd_indices"] = len(p["indices"])
+    except Exception as e:
+        erro = f"Não consegui carregar os projetos: {e}"
+    return render_template("projetos.html", projetos=lista, erro=erro)
+
+
+@app.route("/p/<slug>")
+def projeto_busca(slug):
+    try:
+        projeto = projetos.obter_por_slug(slug)
+    except Exception as e:
+        return render_template(
+            "erro.html", titulo="Projetos indisponíveis",
+            mensagem=f"Não consegui carregar o projeto agora ({e}). A busca geral continua funcionando.",
+        ), 503
+    if not projeto:
+        abort(404, "Projeto não encontrado.")
+    alvo = ",".join(projeto["indices"])
+    return _tela_busca(request.args.get("q", "").strip(), alvo, projeto)
 
 
 @app.route("/admin")
@@ -359,6 +403,90 @@ def indices_pagina():
     )
 
 
+def _indices_para_escolher():
+    """Índices que existem no OpenSearch, para os checkboxes do projeto."""
+    try:
+        return _listar_indices(), None
+    except Exception as e:
+        return [], f"Não consegui listar os índices no OpenSearch: {e}"
+
+
+@app.route("/admin/projetos")
+def admin_projetos():
+    erro = None
+    lista = []
+    try:
+        lista = projetos.listar()
+        for p in lista:
+            p["indices_exibicao"] = [indices.nome_exibicao(i) for i in p["indices"]]
+    except Exception as e:
+        erro = f"Banco de dados dos projetos indisponível: {e}"
+    mensagens = {"criado": "Projeto criado.", "salvo": "Projeto salvo.", "apagado": "Projeto apagado."}
+    return render_template("projetos_admin.html", projetos=lista, erro=erro, sucesso=mensagens.get(request.args.get("ok")))
+
+
+def _formulario_projeto(projeto):
+    """Cria (projeto=None) ou edita um projeto. Mesma tela para os dois."""
+    disponiveis, erro = _indices_para_escolher()
+    nome = projeto["nome"] if projeto else ""
+    descricao = (projeto["descricao"] or "") if projeto else ""
+    marcados = list(projeto["indices"]) if projeto else []
+
+    if request.method == "POST":
+        nome = request.form.get("nome", "")
+        descricao = request.form.get("descricao", "")
+        marcados = request.form.getlist("indice")
+        try:
+            if projeto:
+                projetos.atualizar(projeto["id"], nome, descricao, marcados)
+                return redirect("/admin/projetos?ok=salvo")
+            projetos.criar(nome, descricao, marcados)
+            return redirect("/admin/projetos?ok=criado")
+        except ValueError as e:
+            erro = str(e)
+        except Exception as e:
+            erro = f"Erro ao salvar o projeto: {e}"
+
+    return render_template(
+        "projeto_form.html", projeto=projeto, nome=nome, descricao=descricao,
+        marcados=marcados, disponiveis=disponiveis, erro=erro,
+        limite_nome=projetos.LIMITE_NOME, limite_descricao=projetos.LIMITE_DESCRICAO,
+    )
+
+
+def _projeto_ou_erro(projeto_id):
+    """(projeto, resposta_de_erro): o projeto, ou a página de erro pronta."""
+    try:
+        projeto = projetos.obter(projeto_id)
+    except Exception as e:
+        return None, (render_template("erro.html", titulo="Projetos indisponíveis", mensagem=f"Banco de dados indisponível: {e}"), 503)
+    if not projeto:
+        abort(404, "Projeto não encontrado.")
+    return projeto, None
+
+
+@app.route("/admin/projetos/novo", methods=["GET", "POST"])
+def admin_projeto_novo():
+    return _formulario_projeto(None)
+
+
+@app.route("/admin/projetos/<int:projeto_id>", methods=["GET", "POST"])
+def admin_projeto_editar(projeto_id):
+    projeto, erro = _projeto_ou_erro(projeto_id)
+    return erro or _formulario_projeto(projeto)
+
+
+@app.route("/admin/projetos/<int:projeto_id>/apagar", methods=["GET", "POST"])
+def admin_projeto_apagar(projeto_id):
+    projeto, erro = _projeto_ou_erro(projeto_id)
+    if erro:
+        return erro
+    if request.method == "POST":
+        projetos.apagar(projeto_id)
+        return redirect("/admin/projetos?ok=apagado")
+    return render_template("projeto_apagar.html", projeto=projeto)
+
+
 @app.route("/admin/indices/<nome>/reindexar", methods=["POST"])
 def indice_reindexar(nome):
     """Recoloca na fila os documentos do índice que ainda não têm os campos das
@@ -415,6 +543,10 @@ def indice_apagar(nome):
             else:
                 try:
                     jobs.apagar_do_indice(nome)
+                except Exception:
+                    pass
+                try:
+                    projetos.desvincular_indice(nome)
                 except Exception:
                     pass
                 return redirect(f"/admin/indices?apagado={exibicao}")

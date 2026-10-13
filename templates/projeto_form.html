@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Editar projeto' if projeto else 'Novo projeto' }} — RCI Search{% endblock %}
+{% block content %}
+<div class="page is-results">
+  {% set ativo = 'admin' %}{% set aba = 'projetos' %}
+  {% include '_topbar.html' %}
+  {% include '_admin_abas.html' %}
+
+  <main class="tabela-area">
+    <h1>{{ 'Editar projeto' if projeto else 'Novo projeto' }}</h1>
+    {% if projeto %}<p class="hint">Endereço: <a href="/p/{{ projeto.slug }}">/p/{{ projeto.slug }}</a> (não muda ao renomear, para os links salvos continuarem valendo).</p>{% endif %}
+
+    {% if erro %}<div class="alert alert-error">{{ erro }}</div>{% endif %}
+
+    <form method="post" class="form-projeto">
+      <label class="campo">
+        <span>Nome</span>
+        <input type="text" name="nome" value="{{ nome }}" maxlength="{{ limite_nome }}" required autofocus>
+      </label>
+      <label class="campo">
+        <span>Descrição <span class="hint">(opcional)</span></span>
+        <textarea name="descricao" rows="2" maxlength="{{ limite_descricao }}">{{ descricao }}</textarea>
+      </label>
+
+      <fieldset class="campo">
+        <legend>Índices do projeto</legend>
+        {% for i in disponiveis %}
+          <label class="faceta-item">
+            <input type="checkbox" name="indice" value="{{ i.nome }}" {{ 'checked' if i.nome in marcados }}>
+            <span class="faceta-rotulo">{{ i.exibicao }}</span>
+            <span class="faceta-n">{{ i.docs }} doc(s)</span>
+          </label>
+        {% else %}
+          <p class="hint">Nenhum índice disponível. <a href="/admin/indices">Crie um índice</a> primeiro.</p>
+        {% endfor %}
+      </fieldset>
+
+      <div class="acoes-form">
+        <button type="submit" class="btn-prim">{{ 'Salvar' if projeto else 'Criar projeto' }}</button>
+        <a href="/admin/projetos" class="voltar-btn">Cancelar</a>
+      </div>
+    </form>
+  </main>
+</div>
+{% endblock %}

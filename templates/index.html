@@ -2,24 +2,31 @@
 {% block title %}RCI Search{% endblock %}
 {% block content %}
 <div class="page {{ 'is-results' if q else 'is-home' }}">
-  {% set ativo = 'buscar' %}
+  {% set ativo = 'projetos' if projeto else 'buscar' %}
   {% include '_topbar.html' %}
 
   {% if not q %}<div class="home-hero">
     <a href="/" class="brand">
       <span class="brand-rci">RCI</span><span class="brand-search">Search</span>
     </a>
+    {% if projeto %}
+      <div class="projeto-titulo">
+        <h1>{{ projeto.nome }}</h1>
+        {% if projeto.descricao %}<p>{{ projeto.descricao }}</p>{% endif %}
+        {% if not projeto.indices %}<p class="aviso-projeto">Este projeto ainda não tem índices.{% if eh_admin %} <a href="/admin/projetos/{{ projeto.id }}">Escolher índices</a>{% endif %}</p>{% endif %}
+      </div>
+    {% endif %}
   {% endif %}
 
     {% if q %}<div class="grade-3 linha-busca"><div></div><div class="coluna-centro">{% endif %}
-    <form method="get" action="/" class="search-form" role="search">
+    <form method="get" action="{{ acao }}" class="search-form" role="search">
       <div class="search-box">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="11" cy="11" r="7"></circle>
           <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
         </svg>
-        <input type="text" name="q" value="{{ q }}" placeholder="Pesquisar documentos..." autofocus autocomplete="off">
-        {% if q %}<a class="clear" href="/" title="Limpar busca">&times;</a>{% endif %}
+        <input type="text" name="q" value="{{ q }}" placeholder="{{ 'Pesquisar em ' ~ projeto.nome ~ '...' if projeto else 'Pesquisar documentos...' }}" autofocus autocomplete="off">
+        {% if q %}<a class="clear" href="{{ acao }}" title="Limpar busca">&times;</a>{% endif %}
       </div>
       <button type="submit" class="search-btn">Buscar</button>
     </form>
@@ -31,7 +38,7 @@
   <main class="grade-3 results-area">
     <aside class="facetas" aria-label="Filtros">
     {% if facetas %}
-        <form method="get" action="/" id="form-facetas">
+        <form method="get" action="{{ acao }}" id="form-facetas">
           <input type="hidden" name="q" value="{{ q }}">
           {% for f in facetas %}
             <fieldset>
@@ -47,12 +54,13 @@
             </fieldset>
           {% endfor %}
           <noscript><button type="submit" class="btn-sec">Aplicar filtros</button></noscript>
-          {% if filtrando %}<a class="limpar-filtros" href="/?q={{ q|urlencode }}">Limpar filtros</a>{% endif %}
+          {% if filtrando %}<a class="limpar-filtros" href="{{ acao }}?q={{ q|urlencode }}">Limpar filtros</a>{% endif %}
         </form>
     {% endif %}
     </aside>
 
     <div class="resultados">
+    {% if projeto %}<div class="projeto-linha">Projeto <strong>{{ projeto.nome }}</strong> · {{ projeto.indices|length }} índice(s)</div>{% endif %}
     {% if erro %}
       <div class="alert alert-error">Erro ao consultar o OpenSearch: {{ erro }}</div>
     {% endif %}
@@ -75,7 +83,7 @@
     {% endfor %}
 
     {% if not resultados and not erro %}
-      <div class="empty">Nenhum documento encontrado para "{{ q }}".{% if filtrando %} <a href="/?q={{ q|urlencode }}">Limpar filtros</a>{% endif %}</div>
+      <div class="empty">Nenhum documento encontrado para "{{ q }}".{% if filtrando %} <a href="{{ acao }}?q={{ q|urlencode }}">Limpar filtros</a>{% endif %}</div>
     {% endif %}
     </div>
 

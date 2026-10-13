@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Apagar projeto — RCI Search{% endblock %}
+{% block content %}
+<div class="page is-results">
+  {% set ativo = 'admin' %}{% set aba = 'projetos' %}
+  {% include '_topbar.html' %}
+  {% include '_admin_abas.html' %}
+
+  <main class="erro-area">
+    <div class="erro-card">
+      <h1>Apagar o projeto "{{ projeto.nome }}"?</h1>
+      <p>
+        A página <code>/p/{{ projeto.slug }}</code> deixa de existir. Os índices e os documentos
+        <strong>não são apagados</strong>: continuam na busca geral e nos outros projetos.
+      </p>
+      <form method="post" class="form-confirma">
+        <button type="submit" class="btn-perigo">Apagar projeto</button>
+        <a href="/admin/projetos" class="voltar-btn">Cancelar</a>
+      </form>
+    </div>
+  </main>
+</div>
+{% endblock %}

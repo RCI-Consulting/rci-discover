@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Projetos — Administração — RCI Search{% endblock %}
+{% block content %}
+<div class="page is-results">
+  {% set ativo = 'admin' %}{% set aba = 'projetos' %}
+  {% include '_topbar.html' %}
+  {% include '_admin_abas.html' %}
+
+  <main class="tabela-area">
+    <div class="tabela-header">
+      <div>
+        <h1>Projetos</h1>
+        <p class="hint">Um projeto agrupa índices e ganha uma página de busca própria. Um índice pode estar em vários projetos.</p>
+      </div>
+      <a href="/admin/projetos/novo" class="btn-sec">Novo projeto</a>
+    </div>
+
+    {% if erro %}<div class="alert alert-error">{{ erro }}</div>{% endif %}
+    {% if sucesso %}<div class="alert alert-ok">{{ sucesso }}</div>{% endif %}
+
+    {% if projetos %}
+      <table class="tabela">
+        <thead><tr><th>Projeto</th><th>Índices</th><th>Endereço</th><th></th></tr></thead>
+        <tbody>
+          {% for p in projetos %}
+            <tr>
+              <td><strong>{{ p.nome }}</strong>
+                {% if p.descricao %}<div class="msg-job">{{ p.descricao }}</div>{% endif %}
+              </td>
+              <td>
+                {% for i in p.indices_exibicao %}<span class="tag-indice">{{ i }}</span> {% else %}<span class="hint">nenhum</span>{% endfor %}
+              </td>
+              <td class="nowrap"><a href="/p/{{ p.slug }}">/p/{{ p.slug }}</a></td>
+              <td class="nowrap">
+                <a href="/admin/projetos/{{ p.id }}">Editar</a>
+                &nbsp;<a class="link-perigo" href="/admin/projetos/{{ p.id }}/apagar">Apagar</a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% elif not erro %}
+      <div class="empty">Nenhum projeto ainda. <a href="/admin/projetos/novo">Criar o primeiro</a></div>
+    {% endif %}
+  </main>
+</div>
+{% endblock %}

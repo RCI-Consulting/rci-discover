@@ -819,3 +819,53 @@ code { background: var(--rci-bg-soft); border-radius: 4px; padding: 1px 5px; fon
   .facetas fieldset { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-bottom: 10px; }
   .facetas legend { width: 100%; }
 }
+
+/* Projetos */
+.projeto-titulo { text-align: center; max-width: 560px; }
+.projeto-titulo h1 { margin: 0 0 4px 0; font-size: 22px; color: var(--rci-navy); }
+.projeto-titulo p { margin: 4px 0 0 0; font-size: 14px; color: var(--rci-text-muted); }
+.projeto-titulo .aviso-projeto { color: var(--rci-error-text); }
+.projeto-linha { font-size: 13px; color: var(--rci-text-muted); margin-bottom: 4px; }
+.projeto-linha strong { color: var(--rci-navy); }
+
+.projetos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; margin-top: 12px; }
+.projeto-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px 18px;
+  background: var(--rci-bg-soft);
+  border: 1px solid var(--rci-border);
+  border-radius: 12px;
+  text-decoration: none;
+  color: var(--rci-ink);
+}
+.projeto-card:hover { border-color: var(--rci-blue); box-shadow: 0 2px 8px rgba(0, 79, 254, 0.12); }
+.projeto-card h2 { margin: 0; font-size: 16px; color: var(--rci-navy); }
+.projeto-card p { margin: 0; font-size: 13.5px; color: var(--rci-text-muted); overflow-wrap: anywhere; }
+.projeto-card .hint { margin: 0; }
+
+.form-projeto { max-width: 520px; margin-top: 12px; }
+.form-projeto .campo { display: block; margin: 0 0 16px 0; padding: 0; border: none; }
+.form-projeto .campo > span, .form-projeto legend { display: block; margin-bottom: 6px; font-weight: 600; font-size: 13.5px; padding: 0; }
+.form-projeto input[type="text"], .form-projeto textarea {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--rci-border);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 14px;
+}
+.form-projeto .faceta-item { padding: 5px 0; }
+.acoes-form { display: flex; align-items: center; gap: 16px; margin-top: 8px; }
+.btn-prim {
+  padding: 10px 22px;
+  border: none;
+  border-radius: 20px;
+  background: var(--rci-blue);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-prim:hover { background: var(--rci-blue-dark); }

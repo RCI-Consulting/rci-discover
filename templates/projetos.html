@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Projetos — RCI Search{% endblock %}
+{% block content %}
+<div class="page is-results">
+  {% set ativo = 'projetos' %}
+  {% include '_topbar.html' %}
+
+  <main class="tabela-area">
+    <h1>Projetos</h1>
+    <p class="hint">Cada projeto reúne alguns índices e tem uma busca própria. Para pesquisar em tudo, use <a href="/">Buscar</a>.</p>
+
+    {% if erro %}
+      <div class="alert alert-error">{{ erro }}</div>
+    {% elif projetos %}
+      <div class="projetos-grid">
+        {% for p in projetos %}
+          <a class="projeto-card" href="/p/{{ p.slug }}">
+            <h2>{{ p.nome }}</h2>
+            {% if p.descricao %}<p>{{ p.descricao }}</p>{% endif %}
+            <span class="hint">{{ p.qtd_indices }} índice(s)</span>
+          </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty">Nenhum projeto ainda.{% if eh_admin %} <a href="/admin/projetos/novo">Criar o primeiro projeto</a>{% endif %}</div>
+    {% endif %}
+  </main>
+</div>
+{% endblock %}

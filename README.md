@@ -260,3 +260,18 @@ Contra um OpenSearch descartável (container local), um Docling falso com atraso
 - **Favicon:** ícone da aba com a logo clara (versão "branco" da marca, `#F5EEDB`) sobre um **quadrado azul arredondado**. Usei o fundo azul porque a logo clara sozinha, sobre transparente, some em abas claras. `static/favicon.ico` (16 a 256 px), `static/img/favicon-32.png` e `apple-touch-icon.png` (180 px, atalho no celular). O app responde também em `/favicon.ico`, onde os navegadores procuram por padrão.
 - **Arquivos gerados** dos PNGs da marca (3939×3939 px, com muita margem transparente): `static/img/rci-logo-azul.png` (recortada e reduzida para 360 px de largura, 12 KB). Os PNGs originais continuam na pasta `images/`, fora do Git.
 - Alterados: `templates/_topbar.html`, `base.html`, `preview_erro.html`, `static/style.css` (regra `.home-btn`), `web_app.py` (rota `/favicon.ico`).
+
+13/10/2026 (3)
+
+# Projetos (grupos de índices com busca própria)
+- Um **projeto** agrupa vários índices e tem uma **página de busca própria**, como os projetos do Watson Explorer. Um índice pode estar em **vários projetos**. A busca geral (`/`, "Buscar") continua pesquisando em todos os índices, como antes.
+- **Telas:** `/projetos` lista os projetos em cards; `/p/<endereço>` é a busca de um projeto (caixa de busca, filtros e resultados só dos índices dele, com o nome e a descrição do projeto). O menu do topo ganhou **Projetos**.
+- **Administração → Projetos** (`/admin/projetos`): criar, editar (nome, descrição, índices por checkbox) e apagar. O **endereço** (`/p/...`) vem do nome (sem acento, minúsculo, com hífen; `-2`, `-3` se já existir) e **não muda ao renomear**, para links salvos continuarem valendo. Apagar um projeto remove só o projeto: índices e documentos não são tocados. Apagar um **índice** o tira de todos os projetos.
+- **Dados:** tabelas `projetos` e `projeto_indices` no MySQL (criadas sozinhas no primeiro uso). O vínculo guarda o nome real do índice; índice que não existe mais no OpenSearch é ignorado na busca.
+- **Busca no projeto:** o alvo é a lista de índices do projeto (nomes validados como índices gerenciados). Projeto sem índices não consulta o OpenSearch e avisa na tela. As facetas (Índice, Tipo, Data) valem só dentro do projeto.
+- **Auditoria:** buscas feitas num projeto gravam `projeto=<endereço>` na coluna *Filtros*, junto dos filtros de facetas.
+- **Se o MySQL estiver fora:** `/p/<projeto>` mostra uma página de erro amigável (503) avisando que a busca geral continua; `/projetos` e a administração abrem com aviso; a busca geral não é afetada.
+- **Ainda não existe:** restrição de quem vê cada projeto. Quando o login entrar (PR #3), dá para ligar projetos a grupos/papéis do Entra ID.
+
+## Arquivos
+- Novos: `projetos.py`, `templates/projetos.html`, `projetos_admin.html`, `projeto_form.html`, `projeto_apagar.html`. Alterados: `web_app.py` (busca separada em `_pesquisar`/`_tela_busca`, rotas `/projetos`, `/p/<slug>` e `/admin/projetos...`), `templates/index.html`, `_topbar.html`, `_admin_abas.html`, `static/style.css`.
