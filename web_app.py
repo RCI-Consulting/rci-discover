@@ -227,7 +227,7 @@ def _pesquisar(q, alvo, projeto=None):
 
 def _tela_busca(q, alvo, projeto=None):
     return render_template(
-        "index.html", q=q, projeto=projeto, acao=f"/p/{projeto['slug']}" if projeto else "/",
+        "index.html", q=q, projeto=projeto, acao=f"/p/{projeto['slug']}" if projeto else "/busca",
         **_pesquisar(q, alvo, projeto),
     )
 
@@ -253,6 +253,20 @@ def sugestoes_autocomplete():
 
 
 @app.route("/")
+def home():
+    """Página inicial: boas-vindas e atalhos. Links antigos da busca geral
+    (/?q=...) vão para /busca com a mesma consulta."""
+    if "q" in request.args:
+        return redirect(f"/busca?{request.query_string.decode('utf-8', 'replace')}")
+    qtd_projetos = None  # None = não deu para saber (MySQL fora): o card some com o número
+    try:
+        qtd_projetos = len(projetos.listar())
+    except Exception:
+        pass
+    return render_template("home.html", qtd_projetos=qtd_projetos)
+
+
+@app.route("/busca")
 def index():
     return _tela_busca(request.args.get("q", "").strip(), indices.padrao_busca())
 

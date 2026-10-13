@@ -290,3 +290,12 @@ Contra um OpenSearch descartável (container local), um Docling falso com atraso
 
 ## Arquivos
 - Novos: `dicionario.py`, `sugestoes.py`, `static/autocomplete.js`, `templates/dicionario_admin.html`, `dicionario_form.html`. Alterados: `web_app.py` (`/sugestoes`, rotas `/admin/dicionario...`, expansão e correção na busca), `auditoria.py` (`termos_populares`), `utils.py` (`escapar_destaque`), `config.py` (`SUGESTOES_MIN_BUSCAS`), `templates/index.html`, `_admin_abas.html`, `static/style.css`.
+
+14/10/2026
+
+# Nova página inicial (boas-vindas) e busca geral em `/busca`
+- **Home (`/`)**: sem caixa de busca. Mostra "Bem-vindo ao RCISearch" e "Comece a explorar", com **cards**: **Busca geral** (vai para `/busca`), **Projetos** (vai para `/projetos`, com a contagem de projetos; se o MySQL estiver fora, o número some e o card continua funcionando) e **Administração** (vai para `/admin`). O card de Administração só aparece quando `acesso.eh_admin()` é verdadeiro, então some sozinho para quem não for admin quando o login entrar (PR #3).
+- **Busca geral agora é `/busca`**, igual à antiga home: caixa de busca no centro, autocomplete, resultados e filtros. O botão **Buscar** do menu, o "Voltar à busca" das páginas de erro e do preview e os formulários da busca apontam para `/busca`.
+- **Links antigos continuam valendo:** `/?q=...` redireciona (302) para `/busca?...` mantendo todos os parâmetros (termo e filtros). `/` sem `q` é a home.
+- A logo azul do topo continua levando para a home. Layout dos cards: 3 em linha a partir de ~1000 px, 2 + 1 em tela média e empilhados no celular (conferido em 1440, 1000, 700 e 380 px, sem rolagem horizontal).
+- Alterados: `web_app.py` (rotas `/` e `/busca`), `templates/home.html` (novo), `_topbar.html`, `erro.html`, `preview.html`, `projetos.html`, `static/style.css`.

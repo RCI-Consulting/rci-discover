@@ -3,7 +3,7 @@
     <img src="{{ url_for('static', filename='img/rci-logo-azul.png') }}" alt="RCI" width="72" height="30">
   </a>
   <nav class="topnav">
-    <a href="/"{% if ativo == 'buscar' %} class="active"{% endif %}>Buscar</a>
+    <a href="/busca"{% if ativo == 'buscar' %} class="active"{% endif %}>Buscar</a>
     <a href="/projetos"{% if ativo == 'projetos' %} class="active"{% endif %}>Projetos</a>
     {% if eh_admin %}<a href="/admin"{% if ativo == 'admin' %} class="active"{% endif %}>Administração</a>{% endif %}
   </nav>
