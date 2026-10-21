@@ -50,25 +50,23 @@
 
           {# os radios ficam dentro do formulário: mesmo com o popup fechado, o escolhido vai junto ao salvar #}
           <dialog id="dialogo-indices" class="dialogo" aria-labelledby="dialogo-indices-titulo">
-            <h2 id="dialogo-indices-titulo">Escolha o índice de destino</h2>
-            <p class="hint">Os documentos desta pasta serão indexados nele. Para pesquisar vários índices juntos, use um <a href="/admin/projetos">projeto</a>.</p>
-            {% if disponiveis|length > 6 %}<input type="search" id="filtro-indices" class="filtro-indices" placeholder="Filtrar índices…" autocomplete="off">{% endif %}
-            <div class="grade-indices" role="radiogroup" aria-labelledby="dialogo-indices-titulo">
+            <div class="dialogo-topo">
+              <h2 id="dialogo-indices-titulo">Índice de destino</h2>
+              <button type="button" class="dialogo-fechar" id="cancelar-indice" aria-label="Fechar">×</button>
+            </div>
+            {% if disponiveis|length > 6 %}<input type="search" id="filtro-indices" class="filtro-indices" placeholder="Filtrar…" autocomplete="off">{% endif %}
+            <div class="lista-indices" role="radiogroup" aria-labelledby="dialogo-indices-titulo">
               {% for i in disponiveis %}
-                <label class="card-indice" data-nome="{{ i.exibicao|lower }}">
+                <label class="item-indice" data-nome="{{ i.exibicao|lower }}">
                   <input type="radio" name="indice" value="{{ i.nome }}" {{ 'checked' if i.nome == escolhido.nome }}
                          data-rotulo="{{ i.exibicao }}" data-docs="{{ i.docs }}">
-                  <span class="card-indice-nome">{{ i.exibicao }}{% if i.padrao %} <span class="hint">(padrão)</span>{% endif %}</span>
-                  <span class="card-indice-info">{{ i.docs }} doc(s) · {{ i.tamanho }}</span>
+                  <span class="item-indice-nome">{{ i.exibicao }}{% if i.padrao %} <span class="hint">· padrão</span>{% endif %}</span>
+                  <span class="item-indice-docs">{{ i.docs }} doc(s)</span>
                 </label>
               {% endfor %}
             </div>
             <p class="hint vazio-indices" hidden>Nenhum índice com esse nome.</p>
-            <div class="acoes-form">
-              <button type="button" class="btn-prim" id="confirmar-indice">Usar este índice</button>
-              <button type="button" class="btn-sec" id="cancelar-indice">Cancelar</button>
-              <a href="/admin/indices" class="link-criar-indice">Criar índice</a>
-            </div>
+            <p class="dialogo-rodape"><a href="/admin/indices">Criar índice</a> · para buscar em vários, use um <a href="/admin/projetos">projeto</a></p>
           </dialog>
         {% endif %}
       </div>
@@ -152,40 +150,38 @@
   var dialogo = document.getElementById("dialogo-indices");
   if (!dialogo) return;
   var anterior = null;
-  var radios = dialogo.querySelectorAll('input[name="indice"]');
   var filtro = document.getElementById("filtro-indices");
 
   function marcado() { return dialogo.querySelector('input[name="indice"]:checked'); }
+  function cancelar() {
+    if (anterior && !anterior.checked) { anterior.checked = true; anterior.dispatchEvent(new Event("change")); }
+  }
 
   document.getElementById("abrir-indices").addEventListener("click", function () {
     anterior = marcado();
     if (filtro) { filtro.value = ""; filtrar(); }
     dialogo.showModal();
-    (filtro || marcado() || radios[0]).focus();
+    (filtro || marcado()).focus();
   });
-  document.getElementById("confirmar-indice").addEventListener("click", function () {
-    var r = marcado();
-    if (r) {
+  // clicar num índice (ou Enter no teclado) já escolhe e fecha; as setas só mudam a seleção
+  dialogo.querySelectorAll('input[name="indice"]').forEach(function (r) {
+    r.addEventListener("change", function () {
       document.getElementById("indice-rotulo").textContent = r.dataset.rotulo;
       document.getElementById("indice-docs").textContent = r.dataset.docs + " doc(s)";
-    }
-    dialogo.close();
+    });
+    r.addEventListener("click", function (e) { if (e.detail > 0) dialogo.close(); });
+    r.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); dialogo.close(); } });
   });
-  function cancelar() { if (anterior) anterior.checked = true; }
   document.getElementById("cancelar-indice").addEventListener("click", function () { cancelar(); dialogo.close(); });
   dialogo.addEventListener("cancel", cancelar);  // tecla Esc
   dialogo.addEventListener("click", function (e) { if (e.target === dialogo) { cancelar(); dialogo.close(); } });  // clique fora
-  // duplo clique num card escolhe e fecha
-  dialogo.querySelectorAll(".card-indice").forEach(function (card) {
-    card.addEventListener("dblclick", function () { document.getElementById("confirmar-indice").click(); });
-  });
 
   function filtrar() {
     var t = filtro ? filtro.value.trim().toLowerCase() : "";
     var algum = false;
-    dialogo.querySelectorAll(".card-indice").forEach(function (card) {
-      var ok = !t || card.dataset.nome.indexOf(t) !== -1;
-      card.hidden = !ok;
+    dialogo.querySelectorAll(".item-indice").forEach(function (item) {
+      var ok = !t || item.dataset.nome.indexOf(t) !== -1;
+      item.hidden = !ok;
       algum = algum || ok;
     });
     dialogo.querySelector(".vazio-indices").hidden = algum;
