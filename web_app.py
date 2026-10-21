@@ -32,6 +32,7 @@ import jobs
 import projetos
 import relevancia
 import sugestoes
+import temas
 import worker
 from opensearch_client import OpenSearchClient
 from utils import escapar_destaque, extensao, gerar_doc_id, montar_trecho, pode_embutir, renderizar_markdown
@@ -89,12 +90,14 @@ def contexto_comum():
 @app.template_global()
 def url_com(**mudancas):
     """URL da página atual com alguns parâmetros trocados (None remove o
-    parâmetro). Usado pela ordenação e pela paginação, que mantêm a
-    consulta e os filtros."""
+    parâmetro; uma lista grava o parâmetro repetido). Usado pela ordenação,
+    pela paginação e pelos temas, que mantêm a consulta e os filtros."""
     args = request.args.copy()
     for chave, valor in mudancas.items():
         args.pop(chave, None)
-        if valor is not None:
+        if isinstance(valor, (list, tuple)):
+            args.setlist(chave, list(valor))
+        elif valor is not None:
             args[chave] = valor
     texto = urlencode(list(args.items(multi=True)))
     return f"{request.path}?{texto}" if texto else request.path
@@ -163,10 +166,12 @@ def _pesquisar(q, alvo, projeto=None):
     total = 0
     erro = None
     filtros = facetas.ler_filtros(request.args)
+    temas_ativos = temas.ler_temas(request.args)
     ordem = relevancia.ler_ordem(request.args)
     pagina = relevancia.ler_pagina(request.args)
     lista_facetas = []
     lista_destaques = []
+    lista_temas = []
     expansoes = []
     correcao = None
     populares = []
@@ -181,7 +186,7 @@ def _pesquisar(q, alvo, projeto=None):
 
             # pesos por campo, frase exata, erros de digitação, sinônimos e bônus de recência
             body = {
-                "query": relevancia.montar_consulta(q, expansoes),
+                "query": temas.restringir(relevancia.montar_consulta(q, expansoes), temas_ativos),
                 "highlight": {
                     "fields": {
                         "conteudo": {
@@ -202,6 +207,7 @@ def _pesquisar(q, alvo, projeto=None):
             resp = cliente.search(alvo, body, ignore_unavailable=True)
             total = resp["hits"]["total"]["value"]
             lista_facetas = facetas.interpretar(resp.get("aggregations"), filtros)
+            lista_temas = temas.consultar(cliente, alvo, body["query"], post_filter, q, temas_ativos, total)
             if total <= 3:
                 correcao = sugestoes.correcao(cliente, alvo, q)
             if total == 0:
@@ -211,7 +217,11 @@ def _pesquisar(q, alvo, projeto=None):
             if pagina == 1 and ordem == "relevancia":
                 # trocar de página ou de ordem não é uma busca nova
                 resumo = "; ".join(
-                    parte for parte in (f"projeto={projeto['slug']}" if projeto else None, facetas.resumo_texto(filtros)) if parte
+                    parte for parte in (
+                        f"projeto={projeto['slug']}" if projeto else None,
+                        facetas.resumo_texto(filtros),
+                        temas.resumo_texto(temas_ativos),
+                    ) if parte
                 )
                 auditoria.registrar_busca(q, total, *auditoria.contexto_requisicao(), filtros=resumo[:500] or None)
 
@@ -245,6 +255,7 @@ def _pesquisar(q, alvo, projeto=None):
         "facetas": lista_facetas, "filtrando": facetas.ha_filtros(filtros),
         "expansoes": expansoes, "correcao": correcao, "populares": populares,
         "destaques": lista_destaques,
+        "temas": lista_temas, "temas_ativos": temas_ativos,
         "ordem": ordem, "ordenacoes": relevancia.ORDENACOES,
         "pagina": pagina, "paginas": paginas, "barra_paginas": relevancia.paginas_visiveis(pagina, paginas),
     }
