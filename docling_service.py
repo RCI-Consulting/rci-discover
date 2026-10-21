@@ -8,7 +8,7 @@ import requests
 import config
 
 from opensearch_client import OpenSearchClient
-from utils import extensao
+from utils import extensao, extrair_titulo
 
 BASE_DOCLING_URL = config.DOCLING_BASE_URL.rstrip("/")
 
@@ -123,6 +123,7 @@ def processar_e_indexar_pdf(caminho_arquivo, doc_id=None, nome_indice=None):
     nome = os.path.basename(caminho_arquivo)
     documento = {
         "nome": nome,
+        "titulo": extrair_titulo(texto_extraido, nome),
         "caminho": str(caminho_arquivo),
         "conteudo": texto_extraido,
         "tipo": extensao(nome) or "outro",

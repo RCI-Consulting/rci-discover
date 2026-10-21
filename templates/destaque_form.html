@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Editar destaque' if destaque else 'Novo destaque' }} — RCI Search{% endblock %}
+{% block content %}
+<div class="page is-results">
+  {% set ativo = 'admin' %}{% set aba = 'destaques' %}
+  {% include '_topbar.html' %}
+  {% include '_admin_abas.html' %}
+
+  <main class="tabela-area">
+    <h1>{{ 'Editar destaque' if destaque else 'Novo destaque' }}</h1>
+
+    {% if erro %}<div class="alert alert-error">{{ erro }}</div>{% endif %}
+
+    {% if not escolhido %}
+      <form method="get" action="/admin/destaques/novo" class="form-dicionario">
+        <input type="text" name="busca_doc" value="{{ busca_doc }}" placeholder="Procure o documento pelo nome ou título" required autofocus>
+        <button type="submit" class="btn-prim">Procurar</button>
+      </form>
+      {% if candidatos %}
+        <table class="tabela">
+          <thead><tr><th>Documento</th><th>Índice</th><th></th></tr></thead>
+          <tbody>
+            {% for c in candidatos %}
+              <tr>
+                <td><strong>{{ c.titulo or c.nome }}</strong>{% if c.titulo and c.titulo != c.nome %}<br><span class="hint">{{ c.nome }}</span>{% endif %}</td>
+                <td><span class="tag-indice">{{ c.indice_nome }}</span></td>
+                <td class="nowrap"><a href="/admin/destaques/novo?indice={{ c.indice|urlencode }}&doc={{ c.doc_id|urlencode }}">Escolher</a></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% elif busca_doc %}
+        <div class="empty">Nenhum documento encontrado para "{{ busca_doc }}".</div>
+      {% endif %}
+    {% else %}
+      <form method="post" class="form-projeto">
+        <div class="campo">
+          <span>Documento</span>
+          <p class="doc-escolhido">
+            <a href="/preview/{{ escolhido.indice }}/{{ escolhido.doc_id }}">{{ escolhido.titulo or escolhido.nome }}</a>
+            <span class="tag-indice">{{ escolhido.indice_nome }}</span>
+            {% if escolhido.sumiu %}<br><span class="aviso-doc">Este documento não está mais no índice: o destaque não aparece na busca.</span>{% endif %}
+            {% if not destaque %}<br><a href="/admin/destaques/novo" class="hint">Trocar documento</a>{% endif %}
+          </p>
+          {% if not destaque %}
+            <input type="hidden" name="indice" value="{{ escolhido.indice }}">
+            <input type="hidden" name="doc" value="{{ escolhido.doc_id }}">
+          {% endif %}
+        </div>
+        <label class="campo">
+          <span>Palavras-chave <span class="hint">(separadas por vírgula)</span></span>
+          <textarea name="termos" rows="3" maxlength="{{ limite_termos }}" required autofocus>{{ termos }}</textarea>
+        </label>
+        <label class="campo">
+          <span>Descrição <span class="hint">(opcional; aparece no lugar do trecho do documento)</span></span>
+          <input type="text" name="descricao" value="{{ descricao }}" maxlength="{{ limite_descricao }}">
+        </label>
+        <div class="acoes-form">
+          <button type="submit" class="btn-prim">Salvar</button>
+          <a href="/admin/destaques" class="voltar-btn">Cancelar</a>
+        </div>
+      </form>
+    {% endif %}
+
+    {% if destaque %}
+      <form method="post" action="/admin/destaques/{{ destaque.id }}/apagar" class="apagar-termo">
+        <button type="submit" class="btn-perigo" onclick="return confirm('Apagar este destaque?')">Apagar destaque</button>
+      </form>
+    {% endif %}
+  </main>
+</div>
+{% endblock %}

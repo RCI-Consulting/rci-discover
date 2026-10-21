@@ -20,6 +20,22 @@ def extensao(nome: str) -> str:
     return Path(nome).suffix.lower().lstrip(".")
 
 
+_TITULO_MARKDOWN = re.compile(r"^\s{0,3}#{1,3}\s+(.+?)\s*#*\s*$", re.MULTILINE)
+
+
+def extrair_titulo(conteudo: str, nome: str) -> str:
+    """Título do documento para a busca e o card: o primeiro título (#, ##
+    ou ###) do Markdown do Docling, nos primeiros 3000 caracteres; sem ele,
+    o nome do arquivo sem extensão e com _ e - trocados por espaço (o
+    tokenizador do OpenSearch não separa "contrato_fornecedor" em duas palavras)."""
+    for m in _TITULO_MARKDOWN.finditer((conteudo or "")[:3000]):
+        titulo = re.sub(r"[*_`]+", "", m.group(1)).strip()
+        if 3 <= len(titulo) <= 200 and titulo != "[imagem]":
+            return titulo
+    base = Path(nome or "").stem
+    return re.sub(r"\s+", " ", re.sub(r"[_\-.]+", " ", base)).strip() or (nome or "")
+
+
 def pode_embutir(nome: str) -> bool:
     """Se o navegador consegue exibir esse tipo de arquivo direto num iframe/img."""
     return Path(nome).suffix.lower() in EXTENSOES_EMBUTIVEIS

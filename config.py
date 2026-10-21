@@ -57,3 +57,7 @@ PROXIES_CONFIAVEIS = int(os.getenv("PROXIES_CONFIAVEIS", "1"))
 # foi feita pelo menos essa quantidade de vezes (evita expor o que uma única
 # pessoa digitou). 1 = sugere qualquer busca que já achou algo.
 SUGESTOES_MIN_BUSCAS = int(os.getenv("SUGESTOES_MIN_BUSCAS", "2"))
+
+# Bônus de recência na relevância: um documento indexado agora vale até
+# (1 + PESO_RECENCIA) vezes o mesmo documento antigo. 0 desliga o bônus.
+PESO_RECENCIA = float(os.getenv("PESO_RECENCIA", "0.5"))

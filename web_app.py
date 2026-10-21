@@ -14,7 +14,7 @@ OpenSearch (evita expor usuário/senha do cluster no front-end).
 
 import os
 from datetime import timedelta
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 from flask import Flask, abort, jsonify, redirect, render_template, request, send_file, send_from_directory
 from opensearchpy.exceptions import RequestError
@@ -24,11 +24,13 @@ from werkzeug.utils import secure_filename
 import acesso
 import auditoria
 import config
+import destaques
 import dicionario
 import facetas
 import indices
 import jobs
 import projetos
+import relevancia
 import sugestoes
 import worker
 from opensearch_client import OpenSearchClient
@@ -84,6 +86,20 @@ def contexto_comum():
     return {"eh_admin": acesso.eh_admin()}
 
 
+@app.template_global()
+def url_com(**mudancas):
+    """URL da página atual com alguns parâmetros trocados (None remove o
+    parâmetro). Usado pela ordenação e pela paginação, que mantêm a
+    consulta e os filtros."""
+    args = request.args.copy()
+    for chave, valor in mudancas.items():
+        args.pop(chave, None)
+        if valor is not None:
+            args[chave] = valor
+    texto = urlencode(list(args.items(multi=True)))
+    return f"{request.path}?{texto}" if texto else request.path
+
+
 @app.before_request
 def proteger_admin():
     if request.path.startswith("/admin") and not acesso.eh_admin():
@@ -110,6 +126,35 @@ def nao_encontrado(e):
     return render_template("erro.html", titulo="Não encontrado", mensagem=mensagem), 404
 
 
+def _destaques_da_busca(q, projeto):
+    """Documentos destacados pelo administrador para essa consulta (bloco
+    acima dos resultados). Na busca de um projeto, só os índices dele.
+    Documento que não existe mais no índice é ignorado."""
+    permitido = set(projeto["indices"]).__contains__ if projeto else indices.eh_gerenciado
+    try:
+        entradas = destaques.casam(q, permitido)
+    except Exception:
+        return []  # destaque é um extra: sem ele a busca segue normal
+    lista = []
+    for e in entradas:
+        doc = cliente.get(e["indice"], e["doc_id"])
+        if not doc:
+            continue
+        fonte = doc["_source"]
+        nome = fonte.get("nome") or e["nome"] or "(sem nome)"
+        lista.append({
+            "id": e["doc_id"],
+            "indice": e["indice"],
+            "indice_nome": indices.nome_exibicao(e["indice"]),
+            "nome": nome,
+            "titulo": fonte.get("titulo") or nome,
+            "tipo": extensao(nome).upper() or "Documento",
+            "descricao": e["descricao"],
+            "trecho": montar_trecho(None, fonte.get("conteudo", "")),
+        })
+    return lista
+
+
 def _pesquisar(q, alvo, projeto=None):
     """Roda a busca em `alvo` (expressão de índices) e prepara o que a tela
     mostra. O `projeto`, quando existe, entra no registro da auditoria e nas
@@ -118,7 +163,10 @@ def _pesquisar(q, alvo, projeto=None):
     total = 0
     erro = None
     filtros = facetas.ler_filtros(request.args)
+    ordem = relevancia.ler_ordem(request.args)
+    pagina = relevancia.ler_pagina(request.args)
     lista_facetas = []
+    lista_destaques = []
     expansoes = []
     correcao = None
     populares = []
@@ -131,35 +179,9 @@ def _pesquisar(q, alvo, projeto=None):
             except Exception:
                 expansoes = []  # o dicionário é um extra: sem ele a busca segue normal
 
-            # Busca melhorada com suporte a erros de digitação e flexibilidade
+            # pesos por campo, frase exata, erros de digitação, sinônimos e bônus de recência
             body = {
-                "size": 20,
-                "query": {
-                    "bool": {
-                        "should": [
-                            # 1. Busca por termos com tolerância a erros de digitação (fuzziness)
-                            {
-                                "multi_match": {
-                                    "query": q,
-                                    "fields": ["conteudo", "nome^3"],
-                                    "operator": "and",
-                                    "fuzziness": "AUTO",
-                                    "prefix_length": 1,
-                                }
-                            },
-                            # 2. Busca por termo/frase parcial (útil para palavras incompletas)
-                            {
-                                "multi_match": {
-                                    "query": q,
-                                    "fields": ["conteudo", "nome^3"],
-                                    "type": "phrase_prefix",
-                                    "boost": 2,
-                                }
-                            }
-                        ],
-                        "minimum_should_match": 1
-                    }
-                },
+                "query": relevancia.montar_consulta(q, expansoes),
                 "highlight": {
                     "fields": {
                         "conteudo": {
@@ -168,14 +190,9 @@ def _pesquisar(q, alvo, projeto=None):
                         }
                     }
                 },
-                "_source": ["nome", "caminho", "conteudo"],
+                "_source": ["nome", "titulo", "caminho", "conteudo"],
             }
-
-            # sinônimos/siglas do dicionário: cada consulta alternativa também pontua
-            for alt in expansoes:
-                body["query"]["bool"]["should"].append({
-                    "multi_match": {"query": alt["consulta"], "fields": ["conteudo", "nome^3"], "operator": "and"}
-                })
+            relevancia.aplicar(body, ordem, pagina)
 
             post_filter, aggs = facetas.montar_consulta(filtros)
             body["aggs"] = aggs
@@ -189,10 +206,14 @@ def _pesquisar(q, alvo, projeto=None):
                 correcao = sugestoes.correcao(cliente, alvo, q)
             if total == 0:
                 populares = sugestoes.populares(slug)
-            resumo = "; ".join(
-                parte for parte in (f"projeto={projeto['slug']}" if projeto else None, facetas.resumo_texto(filtros)) if parte
-            )
-            auditoria.registrar_busca(q, total, *auditoria.contexto_requisicao(), filtros=resumo[:500] or None)
+            if pagina == 1:
+                lista_destaques = _destaques_da_busca(q, projeto)
+            if pagina == 1 and ordem == "relevancia":
+                # trocar de página ou de ordem não é uma busca nova
+                resumo = "; ".join(
+                    parte for parte in (f"projeto={projeto['slug']}" if projeto else None, facetas.resumo_texto(filtros)) if parte
+                )
+                auditoria.registrar_busca(q, total, *auditoria.contexto_requisicao(), filtros=resumo[:500] or None)
 
             for hit in resp["hits"]["hits"]:
                 fonte = hit["_source"]
@@ -208,7 +229,7 @@ def _pesquisar(q, alvo, projeto=None):
                     "indice": hit["_index"],
                     "indice_nome": indices.nome_exibicao(hit["_index"]),
                     "nome": nome,
-                    "titulo": nome,
+                    "titulo": fonte.get("titulo") or nome,
                     "tipo": extensao(nome).upper() or "Documento",
                     "trecho": trecho or "(Sem prévia de texto)",
                 })
@@ -218,10 +239,14 @@ def _pesquisar(q, alvo, projeto=None):
 
     if correcao:
         correcao["destaque"] = escapar_destaque(correcao["destaque"])
+    paginas = relevancia.total_paginas(total)
     return {
         "resultados": resultados, "total": total, "erro": erro,
         "facetas": lista_facetas, "filtrando": facetas.ha_filtros(filtros),
         "expansoes": expansoes, "correcao": correcao, "populares": populares,
+        "destaques": lista_destaques,
+        "ordem": ordem, "ordenacoes": relevancia.ORDENACOES,
+        "pagina": pagina, "paginas": paginas, "barra_paginas": relevancia.paginas_visiveis(pagina, paginas),
     }
 
 
@@ -432,7 +457,10 @@ def indices_pagina():
         n = request.args.get("n", 0, type=int)
         sem_arquivo = request.args.get("sem_arquivo", 0, type=int)
         ja_na_fila = request.args.get("ja_na_fila", 0, type=int)
+        titulos = request.args.get("titulos", 0, type=int)
         sucesso = f'Índice "{request.args["reindexado"]}": {n} documento(s) enviados para a fila de indexação'
+        if titulos:
+            sucesso += f", {titulos} título(s) preenchido(s)"
         if ja_na_fila:
             sucesso += f", {ja_na_fila} já estavam na fila"
         if sem_arquivo:
@@ -610,15 +638,134 @@ def admin_dicionario_apagar(entrada_id):
     return redirect("/admin/dicionario?ok=apagado")
 
 
+def _destaques_indisponivel(e):
+    return render_template("erro.html", titulo="Destaques indisponíveis", mensagem=f"Banco de dados indisponível: {e}"), 503
+
+
+@app.route("/admin/destaques")
+def admin_destaques():
+    erro = None
+    lista = []
+    try:
+        lista = destaques.listar()
+        for d in lista:
+            d["indice_nome"] = indices.nome_exibicao(d["indice"])
+    except Exception as e:
+        erro = f"Banco de dados dos destaques indisponível: {e}"
+    mensagens = {"criado": "Destaque criado.", "salvo": "Destaque salvo.", "apagado": "Destaque apagado."}
+    return render_template("destaques_admin.html", destaques=lista, erro=erro, sucesso=mensagens.get(request.args.get("ok")))
+
+
+def _buscar_documentos(texto):
+    """Documentos cujo título ou nome casa com o texto, para escolher o destaque."""
+    resp = cliente.search(indices.padrao_busca(), {
+        "size": 10,
+        "query": {"multi_match": {"query": texto, "fields": ["titulo^2", "nome"], "type": "bool_prefix", "operator": "and"}},
+        "_source": ["nome", "titulo"],
+    }, ignore_unavailable=True)
+    return [
+        {
+            "indice": hit["_index"], "indice_nome": indices.nome_exibicao(hit["_index"]), "doc_id": hit["_id"],
+            "nome": hit["_source"].get("nome", "(sem nome)"), "titulo": hit["_source"].get("titulo"),
+        }
+        for hit in resp["hits"]["hits"]
+    ]
+
+
+def _formulario_destaque(destaque):
+    """Cria (destaque=None) ou edita um destaque. Na criação, o documento vem
+    de ?indice=...&doc=... (link "Destacar na busca" do preview ou escolha na
+    lista); na edição o documento é fixo (para trocar, apague e crie outro)."""
+    erro = None
+    termos = request.values.get("termos", destaque["termos"] if destaque else "")
+    descricao = request.values.get("descricao", (destaque["descricao"] or "") if destaque else "")
+    busca_doc = request.args.get("busca_doc", "").strip()[:200]
+    candidatos = []
+
+    if destaque:
+        indice, doc_id = destaque["indice"], destaque["doc_id"]
+    else:
+        indice, doc_id = request.values.get("indice", ""), request.values.get("doc", "")
+    escolhido = None
+    if indice and doc_id:
+        indice_ok, doc = _documento(indice, doc_id)
+        if doc:
+            fonte = doc["_source"]
+            escolhido = {
+                "indice": indice_ok, "indice_nome": indices.nome_exibicao(indice_ok), "doc_id": doc_id,
+                "nome": fonte.get("nome", "(sem nome)"), "titulo": fonte.get("titulo"),
+            }
+        elif destaque:
+            escolhido = {
+                "indice": indice, "indice_nome": indices.nome_exibicao(indice), "doc_id": doc_id,
+                "nome": destaque["nome"] or "(sem nome)", "titulo": None, "sumiu": True,
+            }
+        else:
+            erro = "Documento não encontrado no índice."
+
+    if request.method == "POST":
+        try:
+            if destaque:
+                destaques.atualizar(destaque["id"], termos, descricao)
+                return redirect("/admin/destaques?ok=salvo")
+            if not escolhido:
+                raise ValueError(erro or "Escolha o documento.")
+            destaques.criar(termos, descricao, escolhido["indice"], escolhido["doc_id"], escolhido["nome"])
+            return redirect("/admin/destaques?ok=criado")
+        except ValueError as e:
+            erro = str(e)
+        except Exception as e:
+            erro = f"Erro ao salvar o destaque: {e}"
+    elif busca_doc and not escolhido:
+        try:
+            candidatos = _buscar_documentos(busca_doc)
+        except Exception as e:
+            erro = f"Não consegui buscar os documentos: {e}"
+
+    return render_template(
+        "destaque_form.html", destaque=destaque, escolhido=escolhido, candidatos=candidatos,
+        busca_doc=busca_doc, termos=termos, descricao=descricao, erro=erro,
+        limite_termos=destaques.LIMITE_TERMOS, limite_descricao=destaques.LIMITE_DESCRICAO,
+    )
+
+
+@app.route("/admin/destaques/novo", methods=["GET", "POST"])
+def admin_destaque_novo():
+    return _formulario_destaque(None)
+
+
+@app.route("/admin/destaques/<int:destaque_id>", methods=["GET", "POST"])
+def admin_destaque_editar(destaque_id):
+    try:
+        destaque = destaques.obter(destaque_id)
+    except Exception as e:
+        return _destaques_indisponivel(e)
+    if not destaque:
+        abort(404, "Destaque não encontrado.")
+    return _formulario_destaque(destaque)
+
+
+@app.route("/admin/destaques/<int:destaque_id>/apagar", methods=["POST"])
+def admin_destaque_apagar(destaque_id):
+    try:
+        destaques.apagar(destaque_id)
+    except Exception as e:
+        return _destaques_indisponivel(e)
+    return redirect("/admin/destaques?ok=apagado")
+
+
 @app.route("/admin/indices/<nome>/reindexar", methods=["POST"])
 def indice_reindexar(nome):
-    """Recoloca na fila os documentos do índice que ainda não têm os campos das
-    facetas (tipo e data), usando o arquivo original guardado no servidor."""
+    """Atualiza os documentos antigos do índice: preenche o `titulo` a partir
+    do texto já salvo (rápido, sem Docling) e recoloca na fila os que ainda
+    não têm os campos das facetas (tipo e data), usando o arquivo original
+    guardado no servidor."""
     if not indices.eh_gerenciado(nome):
         abort(404, "Índice não encontrado.")
 
-    enfileirados = sem_arquivo = ja_na_fila = 0
+    enfileirados = sem_arquivo = ja_na_fila = titulos = 0
     try:
+        titulos = cliente.preencher_titulos(nome)
         for doc_id, nome_arquivo, caminho in cliente.listar_desatualizados(nome):
             if not caminho or not os.path.isfile(caminho):
                 sem_arquivo += 1
@@ -635,7 +782,7 @@ def indice_reindexar(nome):
 
     return redirect(
         f"/admin/indices?reindexado={quote(indices.nome_exibicao(nome))}"
-        f"&n={enfileirados}&sem_arquivo={sem_arquivo}&ja_na_fila={ja_na_fila}"
+        f"&n={enfileirados}&sem_arquivo={sem_arquivo}&ja_na_fila={ja_na_fila}&titulos={titulos}"
     )
 
 
@@ -670,6 +817,10 @@ def indice_apagar(nome):
                     pass
                 try:
                     projetos.desvincular_indice(nome)
+                except Exception:
+                    pass
+                try:
+                    destaques.apagar_do_indice(nome)
                 except Exception:
                     pass
                 return redirect(f"/admin/indices?apagado={exibicao}")

@@ -43,6 +43,7 @@
     {% if facetas %}
         <form method="get" action="{{ acao }}" id="form-facetas">
           <input type="hidden" name="q" value="{{ q }}">
+          {% if ordem != 'relevancia' %}<input type="hidden" name="ordem" value="{{ ordem }}">{% endif %}
           {% for f in facetas %}
             <fieldset>
               <legend>{{ f.titulo }}</legend>
@@ -68,8 +69,32 @@
       <div class="alert alert-error">Erro ao consultar o OpenSearch: {{ erro }}</div>
     {% endif %}
     {% if not erro %}
-      <div class="results-meta">{{ total }} resultado(s) para "{{ q }}"{% if filtrando %} <span class="hint">· filtrado</span>{% endif %}</div>
+      <div class="results-meta">
+        <span>{{ total }} resultado(s) para "{{ q }}"{% if filtrando %} <span class="hint">· filtrado</span>{% endif %}{% if paginas > 1 %} · página {{ pagina }} de {{ paginas }}{% endif %}</span>
+        {% if total > 1 %}
+          <nav class="ordenacao" aria-label="Ordenar resultados">Ordenar:
+            {% for chave, rotulo, _ in ordenacoes %}
+              {% if chave == ordem %}<strong aria-current="true">{{ rotulo }}</strong>{% else %}<a href="{{ url_com(ordem=None if chave == 'relevancia' else chave, pagina=None) }}">{{ rotulo }}</a>{% endif %}
+            {% endfor %}
+          </nav>
+        {% endif %}
+      </div>
     {% endif %}
+
+    {% for d in destaques %}
+      <article class="result-card destaque">
+        <span class="selo-destaque">Destaque</span>
+        <h3><a href="/preview/{{ d.indice }}/{{ d.id }}">{{ d.titulo }}</a></h3>
+        <p class="snippet">{% if d.descricao %}{{ d.descricao }}{% else %}{{ d.trecho|safe }}{% endif %}</p>
+        <div class="result-footer">
+          <span class="meta">{{ d.nome }} · {{ d.tipo }} · <span class="tag-indice">{{ d.indice_nome }}</span></span>
+          <span class="acoes">
+            <a class="preview-link" href="/preview/{{ d.indice }}/{{ d.id }}">Visualizar</a>
+            <a class="download" href="/download/{{ d.indice }}/{{ d.id }}">Baixar original ↓</a>
+          </span>
+        </div>
+      </article>
+    {% endfor %}
 
     {% if correcao %}
       <p class="correcao">Você quis dizer: <a href="{{ acao }}?q={{ correcao.texto|urlencode }}">{{ correcao.destaque|safe }}</a>?</p>
@@ -94,7 +119,21 @@
       </article>
     {% endfor %}
 
-    {% if not resultados and not erro %}
+    {% if paginas > 1 and resultados %}
+      <nav class="paginacao paginacao-busca" aria-label="Páginas de resultados">
+        {% if pagina > 1 %}<a href="{{ url_com(pagina=None if pagina == 2 else pagina - 1) }}" rel="prev">← Anterior</a>{% endif %}
+        {% for n in barra_paginas %}
+          {% if n is none %}<span class="hint">…</span>
+          {% elif n == pagina %}<strong aria-current="page">{{ n }}</strong>
+          {% else %}<a href="{{ url_com(pagina=None if n == 1 else n) }}">{{ n }}</a>{% endif %}
+        {% endfor %}
+        {% if pagina < paginas %}<a href="{{ url_com(pagina=pagina + 1) }}" rel="next">Próxima →</a>{% endif %}
+      </nav>
+    {% endif %}
+
+    {% if not resultados and not erro and total > 0 %}
+      <div class="empty">Essa página não existe. <a href="{{ url_com(pagina=None) }}">Voltar à primeira página</a></div>
+    {% elif not resultados and not erro %}
       <div class="empty">Nenhum documento encontrado para "{{ q }}".{% if filtrando %} <a href="{{ acao }}?q={{ q|urlencode }}">Limpar filtros</a>{% endif %}</div>
       {% if populares %}
         <p class="populares">Buscas populares:
