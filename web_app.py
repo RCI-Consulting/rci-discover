@@ -24,9 +24,11 @@ from werkzeug.utils import secure_filename
 import acesso
 import auditoria
 import config
+import crawler
 import destaques
 import dicionario
 import facetas
+import fontes
 import indices
 import jobs
 import projetos
@@ -834,6 +836,10 @@ def indice_apagar(nome):
                     destaques.apagar_do_indice(nome)
                 except Exception:
                     pass
+                try:
+                    fontes.apagar_do_indice(nome)
+                except Exception:
+                    pass
                 return redirect(f"/admin/indices?apagado={exibicao}")
 
     return render_template("indice_apagar.html", exibicao=exibicao, docs=docs, erro=erro)
@@ -877,6 +883,165 @@ def auditoria_pagina():
         resumo=resumo, populares=populares, sem_resultado=sem_resultado,
         linhas=linhas, total=total, pagina=pagina, paginas=paginas,
     )
+
+
+STATUS_EXECUCAO = {
+    "executando": "Executando…",
+    "concluida": "Concluída",
+    "erro": "Erro",
+    "interrompida": "Interrompida",
+}
+
+
+def _hora_local(valor):
+    return valor + timedelta(hours=config.FUSO_HORAS) if valor else None
+
+
+def _preparar_execucao(e):
+    if e:
+        e["status_texto"] = STATUS_EXECUCAO.get(e["status"], e["status"])
+        e["classe"] = {"executando": "processando", "concluida": "concluido"}.get(e["status"], "erro")
+        e["iniciado_local"] = _hora_local(e["iniciado_em"])
+        e["finalizado_local"] = _hora_local(e["finalizado_em"])
+    return e
+
+
+def _fontes_indisponivel(e):
+    return render_template("erro.html", titulo="Fontes indisponíveis", mensagem=f"Banco de dados indisponível: {e}"), 503
+
+
+@app.route("/admin/fontes")
+def admin_fontes():
+    erro = None
+    lista = []
+    try:
+        lista = fontes.listar()
+        for f in lista:
+            f["indice_nome"] = indices.nome_exibicao(f["indice"])
+            f["proxima_local"] = _hora_local(f["proxima_em"])
+            _preparar_execucao(f["ultima"])
+    except Exception as e:
+        erro = f"Banco de dados das fontes indisponível: {e}"
+    executando = any(f["solicitada"] or (f["ultima"] and f["ultima"]["status"] == "executando") for f in lista)
+    mensagens = {
+        "criada": "Fonte criada. A primeira passada começa em alguns segundos.",
+        "salva": "Fonte salva.", "apagada": "Fonte apagada.",
+        "solicitada": "Passada solicitada: começa em alguns segundos.",
+    }
+    return render_template(
+        "fontes_admin.html", fontes=lista, erro=erro, executando=executando,
+        sucesso=mensagens.get(request.args.get("ok")), raizes=fontes.raizes_permitidas(),
+    )
+
+
+def _formulario_fonte(fonte):
+    """Cria (fonte=None) ou edita uma fonte. O botão "Testar" lista o que a
+    pasta tem, sem gravar nem indexar nada."""
+    disponiveis, erro = _indices_para_escolher()
+    validas = sorted(e.lstrip(".") for e in config.EXTENSOES_VALIDAS)
+    if fonte:
+        conf = fonte["config"]
+        dados = {
+            "nome": fonte["nome"], "indice": fonte["indice"], "caminho": conf["caminho"],
+            "extensoes": conf["extensoes"], "ignorar": conf.get("ignorar", ""), "subpastas": conf.get("subpastas"),
+            "intervalo": fonte["intervalo_horas"], "ativa": bool(fonte["ativa"]),
+        }
+    else:
+        dados = {
+            "nome": "", "indice": config.INDEX_NAME, "caminho": "", "extensoes": validas,
+            "ignorar": fontes.IGNORAR_PADRAO, "subpastas": True, "intervalo": 24, "ativa": True,
+        }
+    teste = None
+
+    if request.method == "POST":
+        dados = {
+            "nome": request.form.get("nome", ""),
+            "indice": fonte["indice"] if fonte else request.form.get("indice", ""),
+            "caminho": request.form.get("caminho", ""),
+            "extensoes": request.form.getlist("extensao"),
+            "ignorar": request.form.get("ignorar", ""),
+            "subpastas": bool(request.form.get("subpastas")),
+            "intervalo": request.form.get("intervalo", 0, type=int),
+            "ativa": bool(request.form.get("ativa")) if fonte else True,
+        }
+        try:
+            nome, indice, conf, intervalo = fontes.validar(
+                dados["nome"], dados["indice"], dados["caminho"], dados["extensoes"],
+                dados["ignorar"], dados["subpastas"], dados["intervalo"],
+            )
+            if request.form.get("acao") == "testar":
+                total, primeiros, problemas, parou = crawler.previa(conf)
+                teste = {"total": total, "primeiros": primeiros, "problemas": problemas, "parou": parou}
+            elif fonte:
+                fontes.atualizar(fonte["id"], nome, conf, intervalo, dados["ativa"])
+                return redirect("/admin/fontes?ok=salva")
+            else:
+                fontes.criar(nome, indice, conf, intervalo)
+                return redirect("/admin/fontes?ok=criada")
+        except (ValueError, RuntimeError) as e:
+            erro = str(e)
+        except Exception as e:
+            erro = f"Erro ao salvar a fonte: {e}"
+
+    historico = []
+    if fonte:
+        try:
+            historico = [_preparar_execucao(e) for e in fontes.execucoes(fonte["id"])]
+        except Exception:
+            pass
+    return render_template(
+        "fonte_form.html", fonte=fonte, dados=dados, disponiveis=disponiveis, validas=validas,
+        intervalos=fontes.INTERVALOS, teste=teste, indice_nome=indices.nome_exibicao(fonte["indice"]) if fonte else None, historico=historico, erro=erro,
+        raizes=fontes.raizes_permitidas(), limite_nome=fontes.LIMITE_NOME, limite_ignorar=fontes.LIMITE_IGNORAR,
+    )
+
+
+def _fonte_ou_erro(fonte_id):
+    try:
+        fonte = fontes.obter(fonte_id)
+    except Exception as e:
+        return None, _fontes_indisponivel(e)
+    if not fonte:
+        abort(404, "Fonte não encontrada.")
+    return fonte, None
+
+
+@app.route("/admin/fontes/nova", methods=["GET", "POST"])
+def admin_fonte_nova():
+    return _formulario_fonte(None)
+
+
+@app.route("/admin/fontes/<int:fonte_id>", methods=["GET", "POST"])
+def admin_fonte_editar(fonte_id):
+    fonte, erro = _fonte_ou_erro(fonte_id)
+    return erro or _formulario_fonte(fonte)
+
+
+@app.route("/admin/fontes/<int:fonte_id>/rodar", methods=["POST"])
+def admin_fonte_rodar(fonte_id):
+    try:
+        fontes.solicitar(fonte_id)
+    except Exception as e:
+        return _fontes_indisponivel(e)
+    return redirect("/admin/fontes?ok=solicitada")
+
+
+@app.route("/admin/fontes/<int:fonte_id>/apagar", methods=["POST"])
+def admin_fonte_apagar(fonte_id):
+    """Apaga a fonte; com a caixa marcada, tira também do índice os documentos
+    que vieram dela. Os arquivos na pasta de origem nunca são tocados."""
+    fonte, erro = _fonte_ou_erro(fonte_id)
+    if erro:
+        return erro
+    try:
+        if request.form.get("remover_documentos"):
+            ids = fontes.doc_ids(fonte_id)
+            if ids:
+                cliente.apagar_documentos(fonte["indice"], ids)
+        fontes.apagar(fonte_id)
+    except Exception as e:
+        return render_template("erro.html", titulo="Não consegui apagar a fonte", mensagem=str(e)), 500
+    return redirect("/admin/fontes?ok=apagada")
 
 
 ROTAS_ANTIGAS = {"/ingest": "/admin/documentos", "/fila": "/admin/fila", "/indices": "/admin/indices"}
@@ -957,6 +1122,7 @@ def _deve_iniciar_workers():
 
 if _deve_iniciar_workers():
     worker.iniciar()
+    crawler.iniciar()
 
 
 if __name__ == "__main__":

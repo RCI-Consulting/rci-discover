@@ -56,6 +56,32 @@ def enfileirar(indice, nome_arquivo, caminho, doc_id):
         return cur.lastrowid
 
 
+def enfileirar_lote(indice, itens):
+    """Enfileira vários documentos de uma vez (usado pelo crawler). `itens` é
+    uma lista de (nome_arquivo, caminho, doc_id); os que já têm job na fila ou
+    processando são pulados. Devolve quantos foram pulados."""
+    if not itens:
+        return 0
+    with conectar() as con, con.cursor() as cur:
+        ativos = set()
+        for i in range(0, len(itens), 500):
+            parte = [doc_id for _n, _c, doc_id in itens[i:i + 500]]
+            cur.execute(
+                "SELECT doc_id FROM jobs_indexacao WHERE indice=%s AND status IN ('fila','processando') "
+                "AND doc_id IN (" + ",".join(["%s"] * len(parte)) + ")",
+                (indice, *parte),
+            )
+            ativos |= {linha["doc_id"] for linha in cur.fetchall()}
+        novos = [(indice, nome, str(caminho), doc_id) for nome, caminho, doc_id in itens if doc_id not in ativos]
+        for i in range(0, len(novos), 500):
+            cur.executemany(
+                "INSERT INTO jobs_indexacao (indice, nome_arquivo, caminho, doc_id, status, criado_em) "
+                "VALUES (%s, %s, %s, %s, 'fila', UTC_TIMESTAMP())",
+                novos[i:i + 500],
+            )
+    return len(itens) - len(novos)
+
+
 def listar(limite=100):
     with conectar() as con, con.cursor() as cur:
         cur.execute("SELECT * FROM jobs_indexacao ORDER BY id DESC LIMIT %s", (limite,))

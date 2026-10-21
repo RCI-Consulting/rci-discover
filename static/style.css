@@ -1055,3 +1055,20 @@ a.btn-prim:hover { background: var(--rci-blue-dark); }
   .boas-vindas { padding-top: 40px; }
   .boas-vindas h1 { font-size: 27px; }
 }
+
+/* Fontes do crawler */
+form.inline { display: inline; margin-right: 10px; }
+.btn-sec[disabled] { opacity: 0.5; cursor: default; }
+.caminho-fonte { font-size: 12px; overflow-wrap: anywhere; }
+.campo-check { display: flex; align-items: center; gap: 8px; margin: 0 0 16px 0; font-size: 14px; }
+.checks-linha { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.form-projeto select {
+  padding: 9px 12px;
+  border: 1px solid var(--rci-border);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 14px;
+  background: var(--rci-bg);
+}
+.teste-fonte ul { margin: 6px 0; padding-left: 18px; }
+.teste-fonte p { margin: 8px 0 0 0; }

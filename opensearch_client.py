@@ -51,6 +51,20 @@ class OpenSearchClient:
         except Exception:
             return None
 
+    def apagar_documento(self, index, doc_id):
+        """Apaga um documento; se ele já não existir, não é erro."""
+        try:
+            self.client.delete(index=index, id=doc_id)
+        except NotFoundError:
+            pass
+
+    def apagar_documentos(self, index, doc_ids):
+        """Apaga vários documentos de uma vez. Devolve quantos foram apagados
+        (os que já não existiam não contam e não são erro)."""
+        acoes = ({"_op_type": "delete", "_index": index, "_id": d} for d in doc_ids)
+        sucesso, _erros = helpers.bulk(self.client, acoes, raise_on_error=False, stats_only=True)
+        return sucesso
+
     def exists(self, index, doc_id):
         return self.client.exists(index=index, id=doc_id)
 
