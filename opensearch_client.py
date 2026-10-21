@@ -4,8 +4,13 @@ from opensearchpy.exceptions import NotFoundError
 import config
 import indices
 
+from utils import extrair_titulo
+
 # Documentos indexados antes das facetas não têm `indexado_em`.
 _SEM_DATA = {"bool": {"must_not": {"exists": {"field": "indexado_em"}}}}
+# ...e os indexados antes do ajuste de relevância não têm `titulo`.
+_SEM_TITULO = {"bool": {"must_not": {"exists": {"field": "titulo"}}}}
+_DESATUALIZADO = {"bool": {"should": [_SEM_DATA, _SEM_TITULO], "minimum_should_match": 1}}
 
 
 class OpenSearchClient:
@@ -61,25 +66,41 @@ class OpenSearchClient:
         )
 
     def garantir_mapeamento(self, index):
-        """Adiciona `tipo` e `indexado_em` ao mapeamento de um índice criado
-        antes das facetas (sem isso o OpenSearch os mapearia como texto, que
-        não serve para filtrar nem agrupar). Idempotente e feito uma vez."""
+        """Adiciona `tipo`, `indexado_em` e `titulo` ao mapeamento de um índice
+        criado antes deles (sem isso o OpenSearch mapearia `tipo` e a data como
+        texto, que não serve para filtrar nem agrupar). Idempotente e feito uma vez."""
         if index in self._mapeados:
             return
         try:
-            self.client.indices.put_mapping(index=index, body={"properties": indices.CAMPOS_FACETAS})
+            self.client.indices.put_mapping(index=index, body={"properties": indices.CAMPOS_NOVOS})
         except NotFoundError:
             return  # índice apagado no meio do caminho: deixa o index() reportar
         self._mapeados.add(index)
 
     def contar_desatualizados(self, padrao):
-        """{índice: quantos documentos ainda não têm os campos das facetas}."""
+        """{índice: quantos documentos ainda não têm os campos das facetas ou o título}."""
         resp = self.client.search(
             index=padrao,
-            body={"size": 0, "query": _SEM_DATA, "aggs": {"i": {"terms": {"field": "_index", "size": 100}}}},
+            body={"size": 0, "query": _DESATUALIZADO, "aggs": {"i": {"terms": {"field": "_index", "size": 100}}}},
             ignore_unavailable=True,
         )
         return {b["key"]: b["doc_count"] for b in resp["aggregations"]["i"]["buckets"]}
+
+    def preencher_titulos(self, index):
+        """Grava `titulo` nos documentos que não têm, a partir do texto já
+        salvo (não passa pelo Docling, então é rápido). Retorna quantos."""
+        self.garantir_mapeamento(index)
+        acoes = (
+            {
+                "_op_type": "update",
+                "_index": index,
+                "_id": hit["_id"],
+                "doc": {"titulo": extrair_titulo(hit["_source"].get("conteudo", ""), hit["_source"].get("nome", ""))},
+            }
+            for hit in helpers.scan(self.client, index=index, query={"query": _SEM_TITULO}, _source=["nome", "conteudo"])
+        )
+        sucesso, _erros = helpers.bulk(self.client, acoes, raise_on_error=False, stats_only=True)
+        return sucesso
 
     def listar_desatualizados(self, index):
         """Gera (id, nome, caminho) dos documentos sem os campos das facetas."""

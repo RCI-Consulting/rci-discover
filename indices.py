@@ -21,6 +21,15 @@ CAMPOS_FACETAS = {
     "indexado_em": {"type": "date"},
 }
 
+# Título do documento (primeiro título do Markdown ou o nome do arquivo
+# limpo), com peso maior na busca. Também entra via put_mapping nos antigos.
+CAMPOS_RELEVANCIA = {
+    "titulo": {"type": "text"},
+}
+
+# Campos acrescentados depois da criação dos primeiros índices.
+CAMPOS_NOVOS = {**CAMPOS_FACETAS, **CAMPOS_RELEVANCIA}
+
 MAPEAMENTO = {
     "settings": {"index": {"number_of_shards": 1}},
     "mappings": {
@@ -28,7 +37,7 @@ MAPEAMENTO = {
             "nome": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 512}}},
             "caminho": {"type": "keyword"},
             "conteudo": {"type": "text"},
-            **CAMPOS_FACETAS,
+            **CAMPOS_NOVOS,
         }
     },
 }

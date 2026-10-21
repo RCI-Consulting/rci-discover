@@ -25,7 +25,7 @@
     <p class="hint">Letras minúsculas, números, hífen e underline (2 a 50 caracteres). O prefixo <code>{{ prefixo }}</code> é adicionado automaticamente.</p>
 
     {% if indices %}
-      <p class="hint"><strong>Desatualizados</strong>: documentos indexados antes dos filtros da busca (tipo e data). "Reindexar" reprocessa o arquivo original guardado no servidor, sem precisar enviar de novo, e roda pela fila.</p>
+      <p class="hint"><strong>Desatualizados</strong>: documentos indexados antes dos filtros da busca (tipo e data) ou do título usado na relevância. "Reindexar" preenche o título na hora, a partir do texto já salvo, e reprocessa pela fila os que não têm tipo e data, usando o arquivo original guardado no servidor (não precisa enviar de novo).</p>
       <table class="tabela">
         <thead>
           <tr><th>Índice</th><th>Documentos</th><th>Tamanho</th><th>Saúde</th><th>Desatualizados</th><th></th></tr>
@@ -43,7 +43,7 @@
                 {% if i.pendentes %}
                   <form method="post" action="/admin/indices/{{ i.nome }}/reindexar">
                     {{ i.pendentes }}
-                    <button type="submit" class="btn-sec" title="Reprocessa esses documentos para ganharem tipo e data (filtros da busca)">Reindexar</button>
+                    <button type="submit" class="btn-sec" title="Preenche o título e reprocessa os documentos sem tipo e data (filtros da busca)">Reindexar</button>
                   </form>
                 {% else %}—{% endif %}
               </td>

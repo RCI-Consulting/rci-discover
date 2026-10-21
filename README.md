@@ -299,3 +299,37 @@ Contra um OpenSearch descartável (container local), um Docling falso com atraso
 - **Links antigos continuam valendo:** `/?q=...` redireciona (302) para `/busca?...` mantendo todos os parâmetros (termo e filtros). `/` sem `q` é a home.
 - A logo azul do topo continua levando para a home. Layout dos cards: 3 em linha a partir de ~1000 px, 2 + 1 em tela média e empilhados no celular (conferido em 1440, 1000, 700 e 380 px, sem rolagem horizontal).
 - Alterados: `web_app.py` (rotas `/` e `/busca`), `templates/home.html` (novo), `_topbar.html`, `erro.html`, `preview.html`, `projetos.html`, `static/style.css`.
+
+21/10/2026
+
+# Relevância, ordenação, paginação e destaques (como no Watson Explorer)
+- **Pesos por campo:** novo campo `titulo` em cada documento. É o primeiro título (`#`, `##` ou `###`) do Markdown do Docling; se não houver, é o nome do arquivo sem extensão e com `_`/`-` trocados por espaço (o OpenSearch não separa `contrato_fornecedor` em duas palavras). Pesos: `titulo` 4×, `nome` 3×, `conteudo` 1×. A frase exata (palavras na ordem digitada) também ganha pontos. O card mostra o título e, embaixo, o nome do arquivo.
+- **Recência:** documentos indexados há pouco ganham um bônus de até 50% (`PESO_RECENCIA`, padrão `0.5`; `0` desliga). O bônus é cheio nos primeiros 30 dias e cai para a metade em cerca de um ano. Não é filtro: um documento antigo muito relevante continua na frente. Documentos sem data (anteriores às facetas) ficam neutros.
+- **Ordenação:** "Ordenar: Relevância · Mais recentes · Nome (A–Z)" ao lado do total de resultados. A escolha vai na URL (`ordem=recentes|nome`) e é mantida ao filtrar.
+- **Paginação:** 10 resultados por página, barra numerada (`1 … 5 6 7 8 9 … 20`) e a URL guarda a página (`pagina=`). Mudar filtro ou ordem volta para a página 1. O OpenSearch pagina até 10.000 resultados (página 1000).
+- **Auditoria:** só registra a busca na página 1 com a ordem padrão. Trocar de página ou de ordem não conta como busca nova (antes, cada clique inflaria os "mais buscados").
+- **Destaques** (*best bets*/*spotlights* do Watson Explorer), em **Administração → Destaques** (tabela `destaques` no MySQL, criada sozinha):
+  - O admin escolhe um documento e palavras-chave. Quando a busca **é** a palavra-chave ou a **contém** como palavras inteiras (sem diferenciar maiúsculas nem acentos), o documento aparece num bloco **Destaque** acima dos resultados. Vale só na página 1, aparece mesmo com filtros ou outra ordem e mesmo se a busca normal não achar nada. No máximo 3 por busca.
+  - Para escolher o documento: procure pelo nome/título na tela "Novo destaque", ou use o link **Destacar na busca** no preview (só para admin).
+  - Descrição opcional: aparece no lugar do trecho do documento.
+  - Na busca de um projeto, só aparecem destaques de índices do projeto. Apagar um índice apaga os destaques dele. Documento que sumiu do índice é ignorado na busca e marcado na edição.
+  - Se o MySQL estiver fora, a busca segue sem destaques. Cache de 30 s, como o dicionário.
+- **Documentos antigos:** não têm `titulo` e entram na coluna **Desatualizados** em Administração → Índices. **Reindexar** agora preenche o título na hora, a partir do texto já salvo (sem Docling), e continua mandando para a fila só os que não têm tipo/data. Enquanto não reindexar, eles ainda são achados pelo nome e pelo texto.
+
+## Variável de ambiente nova (opcional, no Dokploy)
+- `PESO_RECENCIA` (padrão `0.5`).
+
+## Como foi testado
+Com um OpenSearch e um MySQL simulados (cliente Flask de teste): corpo da consulta (pesos, `function_score`, `from`/`size`, `sort`), páginas e links preservando os filtros, validação de `ordem` e `pagina` vindas da URL, auditoria só na página 1, destaques (casamento sem acento, palavra inteira, filtro por projeto, documento sumido), telas de admin com o MySQL fora e escape de HTML do documento.
+
+**A conferir no primeiro deploy (não testado contra o OpenSearch real):**
+- buscar algo e ver se a ordem dos resultados faz sentido;
+- usar "Mais recentes" e "Nome (A–Z)";
+- clicar em Reindexar num índice antigo e conferir `titulo` no Dev Tools (`GET rci-*,documentos/_search?_source=titulo,nome`);
+- criar um destaque e buscar a palavra-chave.
+
+Se a busca der erro de `function_score` ou de `sort`, mande a mensagem.
+
+## Arquivos
+- Novos: `relevancia.py`, `destaques.py`, `templates/destaques_admin.html`, `destaque_form.html`.
+- Alterados: `web_app.py` (busca, `url_com`, rotas `/admin/destaques...`, reindexar preenche títulos, apagar índice apaga destaques), `opensearch_client.py` (`preencher_titulos`, desatualizados inclui sem título), `indices.py` (campo `titulo`), `docling_service.py` (grava `titulo`), `utils.py` (`extrair_titulo`), `config.py` (`PESO_RECENCIA`), `templates/index.html`, `preview.html`, `indices.html`, `_admin_abas.html`, `static/style.css`.

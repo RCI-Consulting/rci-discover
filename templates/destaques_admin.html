@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Destaques — Administração — RCI Search{% endblock %}
+{% block content %}
+<div class="page is-results">
+  {% set ativo = 'admin' %}{% set aba = 'destaques' %}
+  {% include '_topbar.html' %}
+  {% include '_admin_abas.html' %}
+
+  <main class="tabela-area">
+    <h1>Destaques</h1>
+    <p class="hint">
+      Documentos fixados no topo da busca para algumas palavras-chave, num bloco "Destaque" acima dos resultados
+      (só na primeira página). Vale quando a busca é a palavra-chave ou a contém, sem diferenciar maiúsculas nem acentos.
+      Exemplo: <code>férias, recesso</code> → política de férias. Também dá para destacar um documento pelo link
+      <strong>Destacar na busca</strong> do preview.
+    </p>
+
+    {% if erro %}<div class="alert alert-error">{{ erro }}</div>{% endif %}
+    {% if sucesso %}<div class="alert alert-ok">{{ sucesso }}</div>{% endif %}
+
+    <p><a href="/admin/destaques/novo" class="btn-prim">Novo destaque</a></p>
+
+    {% if destaques %}
+      <table class="tabela">
+        <thead><tr><th>Palavras-chave</th><th>Documento</th><th>Índice</th><th></th></tr></thead>
+        <tbody>
+          {% for d in destaques %}
+            <tr>
+              <td><strong>{{ d.termos }}</strong>{% if d.descricao %}<br><span class="hint">{{ d.descricao }}</span>{% endif %}</td>
+              <td><a href="/preview/{{ d.indice }}/{{ d.doc_id }}">{{ d.nome or '(sem nome)' }}</a></td>
+              <td><span class="tag-indice">{{ d.indice_nome }}</span></td>
+              <td class="nowrap"><a href="/admin/destaques/{{ d.id }}">Editar</a></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% elif not erro %}
+      <div class="empty">Nenhum destaque ainda.</div>
+    {% endif %}
+  </main>
+</div>
+{% endblock %}
