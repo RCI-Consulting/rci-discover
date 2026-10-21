@@ -333,3 +333,22 @@ Se a busca der erro de `function_score` ou de `sort`, mande a mensagem.
 ## Arquivos
 - Novos: `relevancia.py`, `destaques.py`, `templates/destaques_admin.html`, `destaque_form.html`.
 - Alterados: `web_app.py` (busca, `url_com`, rotas `/admin/destaques...`, reindexar preenche títulos, apagar índice apaga destaques), `opensearch_client.py` (`preencher_titulos`, desatualizados inclui sem título), `indices.py` (campo `titulo`), `docling_service.py` (grava `titulo`), `utils.py` (`extrair_titulo`), `config.py` (`PESO_RECENCIA`), `templates/index.html`, `preview.html`, `indices.html`, `_admin_abas.html`, `static/style.css`.
+
+21/10/2026 (2)
+
+# Temas dos resultados (agrupamento por assunto, como no Watson Explorer)
+- A coluna da direita da busca, que estava reservada, agora mostra os **Temas**: as palavras que mais se destacam nos documentos achados em comparação com o índice inteiro. Exemplo: em "contrato" podem surgir "aditivo", "rescisão", "fornecedor". É o equivalente ao *clustering* do Watson Explorer (herdado do Vivisimo), na versão que o OpenSearch faz sem configurar nada: agregação `significant_text` sobre `conteudo`.
+- **Refinar:** clicar num tema deixa só os documentos que contêm a palavra (`tema=` na URL). Os temas são recalculados dentro desse recorte, então dá para descer mais um nível (até 3 temas ao mesmo tempo, todos obrigatórios). Os temas escolhidos aparecem como etiquetas "Só documentos sobre: escala ×" acima dos resultados; o × tira o tema. "Limpar filtros" tira tudo.
+- **Leve:** analisa só os 100 documentos mais relevantes (`sampler`), ignora texto repetido entre documentos (`filter_duplicate_text`) e roda num pedido separado, com limite de 5 s. Se falhar ou estourar o tempo, a busca aparece normal, só sem o painel. A contagem ao lado de cada tema só aparece quando os 100 cobrem todos os resultados (senão seria uma contagem da amostra).
+- **Fica de fora:** as próprias palavras da busca, palavras de até 3 letras, termos que começam com número, `imagem` (marcador do Docling) e pedaços de URL. Com menos de 3 resultados o painel não aparece.
+- **Telas menores:** abaixo de 1200 px o painel desce para baixo dos filtros, na coluna da esquerda; abaixo de 860 px fica entre os filtros e os resultados, com os temas em linha. Conferido em 1366, 1000 e 700 px, sem rolagem horizontal.
+- Respeita os filtros (índice, tipo, data) e a busca do projeto. A auditoria registra os temas escolhidos na coluna *Filtros* (`tema=escala`).
+- **Limite conhecido:** são palavras soltas. Expressões como "plano de saúde" precisariam de um subcampo com *shingles* no mapeamento e reindexar tudo.
+
+## Como foi testado
+Com OpenSearch simulado: corpo do pedido (amostra, filtros das facetas aplicados, temas escolhidos como filtro), exclusão das palavras da busca e de temas inválidos, falha do OpenSearch sem quebrar a busca, links de refinar e de tirar tema mantendo os outros parâmetros, auditoria. Telas conferidas no navegador com dados de exemplo.
+
+**A conferir no deploy de dev:** buscar algo com bastante resultado e ver se os temas fazem sentido (palavras genéricas do português que escaparem podem entrar no `_EXCLUIR` de `temas.py`); medir se a busca ficou perceptivelmente mais lenta.
+
+## Arquivos
+- Novo: `temas.py`. Alterados: `web_app.py` (temas na busca e `url_com` aceita lista), `templates/index.html`, `static/style.css`.
