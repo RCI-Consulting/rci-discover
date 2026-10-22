@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Editar fonte' if fonte else 'Nova fonte' }} — RCI Search{% endblock %}
+{% block content %}
+<div class="page is-results">
+  {% set ativo = 'admin' %}{% set aba = 'fontes' %}
+  {% include '_topbar.html' %}
+  {% include '_admin_abas.html' %}
+
+  <main class="tabela-area">
+    <h1>{{ 'Editar fonte' if fonte else 'Nova fonte' }}</h1>
+    <p class="hint">Tipo: <strong>pasta / compartilhamento de rede</strong>. O compartilhamento precisa estar montado no servidor, dentro de
+      {% for r in raizes %}<code>{{ r }}</code>{{ ', ' if not loop.last }}{% endfor %}.</p>
+
+    {% if erro %}<div class="alert alert-error">{{ erro }}</div>{% endif %}
+
+    {% if teste %}
+      <div class="alert alert-ok teste-fonte">
+        <strong>{{ teste.total }}{{ '+' if teste.parou }} arquivo(s) encontrado(s).</strong> Nada foi indexado.
+        {% if teste.primeiros %}
+          <ul>{% for c in teste.primeiros %}<li><code>{{ c }}</code></li>{% endfor %}</ul>
+          {% if teste.total > teste.primeiros|length %}<span class="hint">… e mais {{ teste.total - teste.primeiros|length }}{{ '+' if teste.parou }}.</span>{% endif %}
+        {% endif %}
+        {% if teste.problemas %}
+          <p>Problemas de leitura:</p>
+          <ul>{% for p in teste.problemas %}<li>{{ p }}</li>{% endfor %}</ul>
+        {% endif %}
+      </div>
+    {% endif %}
+
+    <form method="post" class="form-projeto">
+      <label class="campo">
+        <span>Nome</span>
+        <input type="text" name="nome" value="{{ dados.nome }}" maxlength="{{ limite_nome }}" required {{ 'autofocus' if not fonte }} placeholder="Ex.: Jurídico — contratos">
+      </label>
+
+      <div class="campo">
+        <span>Índice de destino</span>
+        {% if fonte %}
+          <span class="tag-indice">{{ indice_nome }}</span>
+          <span class="hint">(não muda depois de criada)</span>
+        {% elif not disponiveis %}
+          <p class="hint">Nenhum índice disponível. <a href="/admin/indices">Crie um índice</a> primeiro.</p>
+        {% else %}
+          {% set escolhido = (disponiveis|selectattr('nome', 'equalto', dados.indice)|first) or disponiveis[0] %}
+          <div class="indice-escolhido">
+            <span class="tag-indice" id="indice-rotulo">{{ escolhido.exibicao }}</span>
+            <span class="hint" id="indice-docs">{{ escolhido.docs }} doc(s)</span>
+            <button type="button" class="btn-sec" id="abrir-indices" aria-haspopup="dialog">Trocar índice</button>
+          </div>
+
+          {# os radios ficam dentro do formulário: mesmo com o popup fechado, o escolhido vai junto ao salvar #}
+          <dialog id="dialogo-indices" class="dialogo" aria-labelledby="dialogo-indices-titulo">
+            <div class="dialogo-topo">
+              <h2 id="dialogo-indices-titulo">Índice de destino</h2>
+              <button type="button" class="dialogo-fechar" id="cancelar-indice" aria-label="Fechar">×</button>
+            </div>
+            {% if disponiveis|length > 6 %}<input type="search" id="filtro-indices" class="filtro-indices" placeholder="Filtrar…" autocomplete="off">{% endif %}
+            <div class="lista-indices" role="radiogroup" aria-labelledby="dialogo-indices-titulo">
+              {% for i in disponiveis %}
+                <label class="item-indice" data-nome="{{ i.exibicao|lower }}">
+                  <input type="radio" name="indice" value="{{ i.nome }}" {{ 'checked' if i.nome == escolhido.nome }}
+                         data-rotulo="{{ i.exibicao }}" data-docs="{{ i.docs }}">
+                  <span class="item-indice-nome">{{ i.exibicao }}{% if i.padrao %} <span class="hint">· padrão</span>{% endif %}</span>
+                  <span class="item-indice-docs">{{ i.docs }} doc(s)</span>
+                </label>
+              {% endfor %}
+            </div>
+            <p class="hint vazio-indices" hidden>Nenhum índice com esse nome.</p>
+            <p class="dialogo-rodape"><a href="/admin/indices">Criar índice</a> · para buscar em vários, use um <a href="/admin/projetos">projeto</a></p>
+          </dialog>
+        {% endif %}
+      </div>
+
+      <label class="campo">
+        <span>Pasta no servidor</span>
+        <input type="text" name="caminho" value="{{ dados.caminho }}" required placeholder="{{ raizes[0] ~ '/juridico' if raizes else '/mnt/fontes/juridico' }}">
+      </label>
+
+      <label class="faceta-item campo-check">
+        <input type="checkbox" name="subpastas" value="1" {{ 'checked' if dados.subpastas }}>
+        <span>Incluir subpastas</span>
+      </label>
+
+      <fieldset class="campo">
+        <legend>Tipos de arquivo</legend>
+        <div class="checks-linha">
+          {% for e in validas %}
+            <label class="faceta-item"><input type="checkbox" name="extensao" value="{{ e }}" {{ 'checked' if e in dados.extensoes }}> {{ e|upper }}</label>
+          {% endfor %}
+        </div>
+      </fieldset>
+
+      <label class="campo">
+        <span>Ignorar arquivos e pastas <span class="hint">(padrões separados por vírgula; <code>*</code> vale qualquer coisa)</span></span>
+        <input type="text" name="ignorar" value="{{ dados.ignorar }}" maxlength="{{ limite_ignorar }}">
+      </label>
+
+      <label class="campo">
+        <span>Agenda</span>
+        <select name="intervalo">
+          {% for h, rotulo in intervalos %}<option value="{{ h }}" {{ 'selected' if h == dados.intervalo }}>{{ rotulo }}</option>{% endfor %}
+        </select>
+      </label>
+
+      {% if fonte %}
+        <label class="faceta-item campo-check">
+          <input type="checkbox" name="ativa" value="1" {{ 'checked' if dados.ativa }}>
+          <span>Ativa <span class="hint">(desmarque para pausar a agenda; "Rodar agora" continua funcionando)</span></span>
+        </label>
+      {% endif %}
+
+      <div class="acoes-form">
+        <button type="submit" name="acao" value="salvar" class="btn-prim">{{ 'Salvar' if fonte else 'Criar e rodar' }}</button>
+        <button type="submit" name="acao" value="testar" class="btn-sec">Testar</button>
+        <a href="/admin/fontes" class="voltar-btn">Cancelar</a>
+      </div>
+    </form>
+
+    {% if fonte %}
+      <h2>Últimas passadas</h2>
+      {% if historico %}
+        <table class="tabela">
+          <thead><tr><th>Início</th><th>Situação</th><th>Encontrados</th><th>Novos</th><th>Alterados</th><th>Removidos</th></tr></thead>
+          <tbody>
+            {% for e in historico %}
+              <tr>
+                <td class="nowrap">{{ e.iniciado_local.strftime('%d/%m/%Y %H:%M') }}</td>
+                <td><span class="badge badge-{{ e.classe }}">{{ e.status_texto }}</span>{% if e.mensagem %}<br><span class="msg-job">{{ e.mensagem }}</span>{% endif %}</td>
+                <td>{{ e.encontrados }}</td><td>{{ e.novos }}</td><td>{{ e.alterados }}</td><td>{{ e.removidos }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="hint">Ainda não rodou.</p>
+      {% endif %}
+
+      <form method="post" action="/admin/fontes/{{ fonte.id }}/apagar" class="apagar-termo">
+        <label class="faceta-item campo-check">
+          <input type="checkbox" name="remover_documentos" value="1">
+          <span>Tirar do índice os documentos que vieram desta fonte <span class="hint">(os arquivos na pasta nunca são apagados)</span></span>
+        </label>
+        <button type="submit" class="btn-perigo" onclick="return confirm('Apagar esta fonte?')">Apagar fonte</button>
+      </form>
+    {% endif %}
+  </main>
+</div>
+<script>
+(function () {
+  var dialogo = document.getElementById("dialogo-indices");
+  if (!dialogo) return;
+  var anterior = null;
+  var filtro = document.getElementById("filtro-indices");
+
+  function marcado() { return dialogo.querySelector('input[name="indice"]:checked'); }
+  function cancelar() {
+    if (anterior && !anterior.checked) { anterior.checked = true; anterior.dispatchEvent(new Event("change")); }
+  }
+
+  document.getElementById("abrir-indices").addEventListener("click", function () {
+    anterior = marcado();
+    if (filtro) { filtro.value = ""; filtrar(); }
+    dialogo.showModal();
+    (filtro || marcado()).focus();
+  });
+  // clicar num índice (ou Enter no teclado) já escolhe e fecha; as setas só mudam a seleção
+  dialogo.querySelectorAll('input[name="indice"]').forEach(function (r) {
+    r.addEventListener("change", function () {
+      document.getElementById("indice-rotulo").textContent = r.dataset.rotulo;
+      document.getElementById("indice-docs").textContent = r.dataset.docs + " doc(s)";
+    });
+    r.addEventListener("click", function (e) { if (e.detail > 0) dialogo.close(); });
+    r.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); dialogo.close(); } });
+  });
+  document.getElementById("cancelar-indice").addEventListener("click", function () { cancelar(); dialogo.close(); });
+  dialogo.addEventListener("cancel", cancelar);  // tecla Esc
+  dialogo.addEventListener("click", function (e) { if (e.target === dialogo) { cancelar(); dialogo.close(); } });  // clique fora
+
+  function filtrar() {
+    var t = filtro ? filtro.value.trim().toLowerCase() : "";
+    var algum = false;
+    dialogo.querySelectorAll(".item-indice").forEach(function (item) {
+      var ok = !t || item.dataset.nome.indexOf(t) !== -1;
+      item.hidden = !ok;
+      algum = algum || ok;
+    });
+    dialogo.querySelector(".vazio-indices").hidden = algum;
+  }
+  if (filtro) filtro.addEventListener("input", filtrar);
+})();
+</script>
+{% endblock %}

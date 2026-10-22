@@ -352,3 +352,53 @@ Com OpenSearch simulado: corpo do pedido (amostra, filtros das facetas aplicados
 
 ## Arquivos
 - Novo: `temas.py`. Alterados: `web_app.py` (temas na busca e `url_com` aceita lista), `templates/index.html`, `static/style.css`.
+
+21/10/2026 (3)
+
+# Crawler, fase 1: fontes, agendador e pasta de rede (como os *seeds* das coleções do Watson Explorer)
+- **Fonte** (Administração → **Fontes**): diz de onde um índice busca documentos sozinho e de quanto em quanto tempo. Nesta fase o tipo é **pasta / compartilhamento de rede**. Banco de dados e URL/site vêm nas próximas fases, com o mesmo modelo.
+- **Passada incremental** (`crawler.py`):
+  1. lista os arquivos da pasta (subpastas opcionais, tipos escolhidos, padrões a ignorar como `~$*, .*, Thumbs.db`);
+  2. compara a **assinatura** de cada arquivo (data de modificação + tamanho) com a da passada anterior (tabela `fonte_itens`);
+  3. manda para a **fila de sempre** (Docling) só os **novos e alterados**;
+  4. **apaga do índice** os que **sumiram** da pasta.
+- **Os arquivos não são copiados:** o índice guarda o caminho na própria pasta, de onde saem o preview e o download. O `doc_id` é o mesmo do upload (hash do caminho), então não há duplicata.
+- **Agenda:** só manual, a cada 1/6/12 h, diária ou semanal. **Rodar agora** começa em até ~20 s. Criar uma fonte já dispara a primeira passada. Desmarcar **Ativa** pausa a agenda.
+- **Testar** (no formulário): mostra quantos arquivos a pasta tem e os 10 primeiros, sem gravar nem indexar nada. Serve para conferir o caminho e os filtros.
+- **Proteções:**
+  - **Pastas liberadas:** a pasta precisa estar dentro de `FONTES_PASTAS_PERMITIDAS` (padrão `/mnt/fontes`). Sem isso, quem alcança o `/admin` (ainda sem login) poderia indexar `/etc` ou o código do app.
+  - **Atalhos (symlinks)** são ignorados, porque poderiam apontar para fora da pasta liberada.
+  - **Nada é apagado do índice** quando a pasta não está acessível (compartilhamento fora do ar), quando veio vazia mas antes tinha arquivos, ou quando alguma subpasta não pôde ser lida. A passada fica com erro ou aviso na tela.
+  - **Uma passada por fonte de cada vez,** mesmo com vários processos (`GET_LOCK` do MySQL). Passada interrompida por restart aparece como "Interrompida", e a próxima refaz o que faltou.
+- **Histórico:** cada passada grava encontrados, novos, alterados e removidos, além dos problemas de leitura (tabela `fonte_execucoes`). A lista mostra a última, e a edição mostra as 10 últimas.
+- **Apagar fonte:** opcionalmente tira do índice os documentos que vieram dela. Os arquivos na pasta **nunca** são apagados. Apagar um índice apaga as fontes dele.
+- **Erros de conversão** de um arquivo ficam na **Fila**, com "Tentar novamente". A fonte só reenvia esse arquivo se ele mudar.
+
+## Como ligar um compartilhamento de rede no Dokploy (a conferir no primeiro uso)
+1. **No servidor do Dokploy,** montar o compartilhamento (SMB/CIFS), só leitura. Exemplo de linha no `/etc/fstab`, com as credenciais num arquivo protegido:
+   `//servidor/juridico  /srv/fontes/juridico  cifs  credentials=/root/.smb-rci,ro,iocharset=utf8,uid=0,gid=0  0  0`
+2. **No serviço do frontend no Dokploy,** em *Advanced → Volumes*, adicionar um **bind mount** de `/srv/fontes` para `/mnt/fontes`, só leitura.
+3. **Em Administração → Fontes,** criar a fonte com a pasta `/mnt/fontes/juridico` e clicar em **Testar**.
+
+O mesmo bind mount resolve a pendência antiga dos uploads sem volume persistente, se `PASTA_ORIGEM` passar a apontar para um volume.
+
+## Variáveis de ambiente novas (opcionais, no Dokploy)
+- `FONTES_PASTAS_PERMITIDAS` (padrão `/mnt/fontes`; aceita várias, separadas por vírgula).
+- `CRAWLER_DESATIVADO=1` não sobe o agendador. "Rodar agora" fica pendente até ligar de novo.
+
+## Atenção: volume
+A primeira passada numa pasta grande manda **tudo** para o Docling, que leva minutos por PDF em CPU. Com milhares de arquivos isso leva dias. Comece com uma pasta pequena e acompanhe na **Fila**. A fase 3 prevê extrair DOCX, TXT e HTML sem o Docling.
+
+## Como foi testado
+- **Pasta real em disco,** com MySQL e OpenSearch simulados:
+  - validação (pasta fora da raiz liberada, caminho relativo, índice inválido, nenhum tipo marcado);
+  - Testar;
+  - 1ª passada (tudo novo), 2ª passada (nada muda), 3ª passada (1 novo, 1 alterado, 1 removido, com o `doc_id` certo apagado);
+  - pasta vazia e pasta inexistente sem apagar nada;
+  - arquivos temporários e pastas ocultas ignorados;
+  - telas de lista, edição e criação.
+- **Não testado contra MySQL real:** os comandos `GET_LOCK`, `INSERT ... ON DUPLICATE KEY UPDATE` e a criação das tabelas.
+
+## Arquivos
+- Novos: `fontes.py`, `crawler.py`, `templates/fontes_admin.html`, `fonte_form.html`.
+- Alterados: `web_app.py` (rotas `/admin/fontes...`, agendador sobe com o app, apagar índice apaga as fontes), `jobs.py` (`enfileirar_lote`), `opensearch_client.py` (`apagar_documento(s)`), `config.py`, `templates/_admin_abas.html`, `static/style.css`.

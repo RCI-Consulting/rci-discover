@@ -58,6 +58,11 @@ PROXIES_CONFIAVEIS = int(os.getenv("PROXIES_CONFIAVEIS", "1"))
 # pessoa digitou). 1 = sugere qualquer busca que já achou algo.
 SUGESTOES_MIN_BUSCAS = int(os.getenv("SUGESTOES_MIN_BUSCAS", "2"))
 
+# Fontes do crawler: pastas do servidor (separadas por vírgula) onde uma fonte
+# pode apontar, com as subpastas. Monte os compartilhamentos de rede dentro
+# delas no Dokploy (ex.: /mnt/fontes/juridico).
+FONTES_PASTAS_PERMITIDAS = os.getenv("FONTES_PASTAS_PERMITIDAS", "/mnt/fontes")
+
 # Bônus de recência na relevância: um documento indexado agora vale até
 # (1 + PESO_RECENCIA) vezes o mesmo documento antigo. 0 desliga o bônus.
 PESO_RECENCIA = float(os.getenv("PESO_RECENCIA", "0.5"))

@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Fontes — Administração — RCI Search{% endblock %}
+{% block head_extra %}{% if executando %}<meta http-equiv="refresh" content="10">{% endif %}{% endblock %}
+{% block content %}
+<div class="page is-results">
+  {% set ativo = 'admin' %}{% set aba = 'fontes' %}
+  {% include '_topbar.html' %}
+  {% include '_admin_abas.html' %}
+
+  <main class="tabela-area">
+    <h1>Fontes</h1>
+    <p class="hint">
+      De onde cada índice busca documentos sozinho. A cada passada, só os arquivos <strong>novos ou alterados</strong> vão para a
+      <a href="/admin/fila">fila</a>, e os que <strong>sumiram</strong> da pasta saem do índice. Os arquivos não são copiados:
+      preview e download leem da própria pasta. Pastas liberadas: {% for r in raizes %}<code>{{ r }}</code>{{ ', ' if not loop.last }}{% endfor %}.
+      {% if executando %}<br>Atualizando a cada 10 segundos.{% endif %}
+    </p>
+
+    {% if erro %}<div class="alert alert-error">{{ erro }}</div>{% endif %}
+    {% if sucesso %}<div class="alert alert-ok">{{ sucesso }}</div>{% endif %}
+
+    <p><a href="/admin/fontes/nova" class="btn-prim">Nova fonte</a></p>
+
+    {% if fontes %}
+      <table class="tabela">
+        <thead><tr><th>Fonte</th><th>Índice</th><th>Agenda</th><th>Última passada</th><th></th></tr></thead>
+        <tbody>
+          {% for f in fontes %}
+            <tr>
+              <td>
+                <strong>{{ f.nome }}</strong>{% if not f.ativa %} <span class="hint">(pausada)</span>{% endif %}
+                <br><code class="caminho-fonte">{{ f.config.caminho }}</code>
+                <br><span class="hint">{{ f.itens }} arquivo(s) acompanhado(s)</span>
+              </td>
+              <td><span class="tag-indice">{{ f.indice_nome }}</span></td>
+              <td class="nowrap">
+                {{ f.intervalo_texto }}
+                {% if f.ativa and f.proxima_local %}<br><span class="hint">próxima: {{ f.proxima_local.strftime('%d/%m %H:%M') }}</span>{% endif %}
+              </td>
+              <td>
+                {% set u = f.ultima %}
+                {% if f.solicitada and not (u and u.status == 'executando') %}
+                  <span class="badge badge-fila">Vai começar</span>
+                {% elif u %}
+                  <span class="badge badge-{{ u.classe }}">{{ u.status_texto }}</span>
+                  <span class="hint">{{ u.iniciado_local.strftime('%d/%m %H:%M') }}</span>
+                  {% if u.status == 'concluida' %}
+                    <br><span class="hint">{{ u.encontrados }} encontrado(s) · {{ u.novos }} novo(s) · {{ u.alterados }} alterado(s) · {{ u.removidos }} removido(s)</span>
+                  {% endif %}
+                  {% if u.mensagem %}<br><span class="msg-job">{{ u.mensagem }}</span>{% endif %}
+                {% else %}
+                  <span class="hint">Nunca rodou</span>
+                {% endif %}
+              </td>
+              <td class="nowrap">
+                <form method="post" action="/admin/fontes/{{ f.id }}/rodar" class="inline">
+                  <button type="submit" class="btn-sec" {{ 'disabled' if f.solicitada or (f.ultima and f.ultima.status == 'executando') }}>Rodar agora</button>
+                </form>
+                <a href="/admin/fontes/{{ f.id }}">Editar</a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% elif not erro %}
+      <div class="empty">Nenhuma fonte ainda. Os documentos só entram por <a href="/admin/documentos">upload</a>.</div>
+    {% endif %}
+  </main>
+</div>
+{% endblock %}
