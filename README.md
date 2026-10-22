@@ -504,3 +504,16 @@ A primeira passada numa pasta grande manda **tudo** para o Docling, que leva min
 ## Arquivos
 - Novos: `pastas.py`, `templates/pastas.html`, `pasta.html`, `_salvar_pasta.html`.
 - Alterados: `web_app.py`, `opensearch_client.py` (`existentes`), `templates/index.html`, `preview.html`, `_topbar.html`, `static/style.css`.
+
+22/10/2026 (4)
+
+# Administração em subáreas
+- A administração passou de 11 abas numa linha para **5 áreas**, cada uma com as suas telas numa segunda linha:
+  - **Acervo:** Índices, Projetos, Fontes.
+  - **Indexação:** Adicionar documento, Fila.
+  - **Busca:** Dicionário, Destaques (o que muda o resultado da busca).
+  - **Auditoria:** Buscas (a antiga tela de auditoria), Relatórios.
+  - **E-mail** (tela única, sem segunda linha).
+- **Endereços:** nenhum mudou. Clicar numa área abre a primeira tela dela.
+- **Implementação:** a área é deduzida da tela atual (`aba`), num lugar só (`templates/_admin_abas.html`).
+- Alterados: `templates/_admin_abas.html`, `static/style.css`.

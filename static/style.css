@@ -753,7 +753,7 @@ code { background: var(--rci-bg-soft); border-radius: 4px; padding: 1px 5px; fon
   flex-wrap: wrap;
   gap: 0 2px;
   width: 100%;
-  max-width: 1080px;
+  max-width: 920px;
   margin: 0 auto;
   padding: 0 20px;
   border-bottom: 1px solid var(--rci-border);
@@ -1176,3 +1176,24 @@ form.inline { display: inline; margin-right: 10px; }
 .nota-item { margin-top: 4px; font-size: 13px; color: var(--rci-ink); }
 .form-nota { display: flex; gap: 6px; margin-top: 6px; }
 .form-nota input { flex: 1; padding: 5px 8px; border: 1px solid var(--rci-border); border-radius: 6px; font: inherit; font-size: 13px; }
+
+/* Subáreas da administração (segunda linha de abas) */
+.subabas-admin {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 10px 20px 0 20px;
+}
+.subabas-admin a {
+  white-space: nowrap;
+  padding: 5px 12px;
+  border-radius: 14px;
+  font-size: 13.5px;
+  color: var(--rci-text-muted);
+  text-decoration: none;
+}
+.subabas-admin a:hover { color: var(--rci-navy); background: var(--rci-bg-soft); }
+.subabas-admin a.active { color: var(--rci-blue-dark); background: var(--rci-highlight); font-weight: 600; }

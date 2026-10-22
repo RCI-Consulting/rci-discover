@@ -1,12 +1,23 @@
-<nav class="abas-admin" aria-label="Administração">
-  <a href="/admin/indices"{% if aba == 'indices' %} class="active"{% endif %}>Índices</a>
-  <a href="/admin/projetos"{% if aba == 'projetos' %} class="active"{% endif %}>Projetos</a>
-  <a href="/admin/dicionario"{% if aba == 'dicionario' %} class="active"{% endif %}>Dicionário</a>
-  <a href="/admin/destaques"{% if aba == 'destaques' %} class="active"{% endif %}>Destaques</a>
-  <a href="/admin/fontes"{% if aba == 'fontes' %} class="active"{% endif %}>Fontes</a>
-  <a href="/admin/documentos"{% if aba == 'documentos' %} class="active"{% endif %}>Adicionar documento</a>
-  <a href="/admin/fila"{% if aba == 'fila' %} class="active"{% endif %}>Fila</a>
-  <a href="/admin/auditoria"{% if aba == 'auditoria' %} class="active"{% endif %}>Auditoria</a>
-  <a href="/admin/relatorios"{% if aba == 'relatorios' %} class="active"{% endif %}>Relatórios</a>
-  <a href="/admin/email"{% if aba == 'email' %} class="active"{% endif %}>E-mail</a>
+{# Administração em subáreas: a linha de cima escolhe a área; a de baixo, as telas dela.
+   Cada tela só define `aba`; a área vem daqui. Área com uma tela só não tem a segunda linha. #}
+{% set areas = [
+  ('acervo', 'Acervo', [('indices', 'Índices', '/admin/indices'), ('projetos', 'Projetos', '/admin/projetos'), ('fontes', 'Fontes', '/admin/fontes')]),
+  ('indexacao', 'Indexação', [('documentos', 'Adicionar documento', '/admin/documentos'), ('fila', 'Fila', '/admin/fila')]),
+  ('busca', 'Busca', [('dicionario', 'Dicionário', '/admin/dicionario'), ('destaques', 'Destaques', '/admin/destaques')]),
+  ('auditoria', 'Auditoria', [('auditoria', 'Buscas', '/admin/auditoria'), ('relatorios', 'Relatórios', '/admin/relatorios')]),
+  ('email', 'E-mail', [('email', 'E-mail', '/admin/email')]),
+] %}
+{% set ns = namespace(area=None) %}
+{% for chave, rotulo, telas in areas %}{% for t in telas %}{% if t[0] == aba %}{% set ns.area = (chave, rotulo, telas) %}{% endif %}{% endfor %}{% endfor %}
+<nav class="abas-admin" aria-label="Áreas da administração">
+  {% for chave, rotulo, telas in areas %}
+    <a href="{{ telas[0][2] }}"{% if ns.area and ns.area[0] == chave %} class="active" aria-current="true"{% endif %}>{{ rotulo }}</a>
+  {% endfor %}
 </nav>
+{% if ns.area and ns.area[2]|length > 1 %}
+  <nav class="subabas-admin" aria-label="{{ ns.area[1] }}">
+    {% for chave, rotulo, link in ns.area[2] %}
+      <a href="{{ link }}"{% if chave == aba %} class="active" aria-current="page"{% endif %}>{{ rotulo }}</a>
+    {% endfor %}
+  </nav>
+{% endif %}
