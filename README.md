@@ -507,13 +507,15 @@ A primeira passada numa pasta grande manda **tudo** para o Docling, que leva min
 
 22/10/2026 (4)
 
-# Administração em subáreas
-- A administração passou de 11 abas numa linha para **5 áreas**, cada uma com as suas telas numa segunda linha:
+# Administração com menu lateral, agrupado por área
+- **Layout:** as 11 abas que ficavam numa linha viraram um **menu lateral** à esquerda. O conteúdo ocupa o resto da largura, até 1180 px; antes era limitado a 920 px.
+- **Grupos do menu:**
   - **Acervo:** Índices, Projetos, Fontes.
   - **Indexação:** Adicionar documento, Fila.
   - **Busca:** Dicionário, Destaques (o que muda o resultado da busca).
   - **Auditoria:** Buscas (a antiga tela de auditoria), Relatórios.
-  - **E-mail** (tela única, sem segunda linha).
-- **Endereços:** nenhum mudou. Clicar numa área abre a primeira tela dela.
-- **Implementação:** a área é deduzida da tela atual (`aba`), num lugar só (`templates/_admin_abas.html`).
-- Alterados: `templates/_admin_abas.html`, `static/style.css`.
+  - **Configurações:** E-mail.
+- **Celular (até 860 px):** o menu vira uma faixa rolável acima do conteúdo, já posicionada na tela atual.
+- **Endereços:** nenhum mudou.
+- **Implementação:** o menu e os grupos ficam num lugar só (`templates/_admin_abas.html`). O layout em duas colunas usa `.page:has(> .menu-admin)` no CSS, então as telas não precisaram mudar.
+- Alterados: `templates/_admin_abas.html`, `static/style.css` (sai o CSS das abas antigas).
