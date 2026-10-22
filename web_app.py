@@ -23,6 +23,7 @@ from werkzeug.utils import secure_filename
 
 import acesso
 import auditoria
+import buscas_salvas
 import config
 import configuracoes
 import crawler
@@ -270,6 +271,8 @@ def _pesquisar(q, alvo, projeto=None):
 def _tela_busca(q, alvo, projeto=None):
     return render_template(
         "index.html", q=q, projeto=projeto, acao=f"/p/{projeto['slug']}" if projeto else "/busca",
+        parametros_salvar=buscas_salvas.parametros_da_tela(request.args),
+        frequencias_alerta=buscas_salvas.FREQUENCIAS,
         **_pesquisar(q, alvo, projeto),
     )
 
@@ -1246,6 +1249,81 @@ def admin_relatorio_apagar(relatorio_id):
     except Exception as e:
         return _email_indisponivel(e)
     return redirect("/admin/relatorios?ok=apagado")
+
+
+def _buscas_indisponivel(e):
+    return render_template("erro.html", titulo="Buscas salvas indisponíveis", mensagem=f"Banco de dados indisponível: {e}"), 503
+
+
+@app.route("/buscas-salvas")
+def buscas_salvas_pagina():
+    erro = None
+    lista = []
+    try:
+        lista = buscas_salvas.listar(acesso.usuario_atual())
+        for b in lista:
+            b["proxima_local"] = _hora_local(b["proxima_em"])
+    except Exception as e:
+        erro = f"Banco de dados das buscas salvas indisponível: {e}"
+    mensagens = {"criada": "Busca salva.", "salva": "Busca salva.", "apagada": "Busca apagada."}
+    return render_template(
+        "buscas_salvas.html", buscas=lista, erro=erro, sucesso=mensagens.get(request.args.get("ok")),
+        sem_login=acesso.usuario_atual() is None,
+    )
+
+
+@app.route("/buscas-salvas/salvar", methods=["POST"])
+def buscas_salvas_salvar():
+    """Vem do botão "Salvar busca" da tela de resultados."""
+    projeto = request.form.get("projeto", "").strip() or None
+    if projeto and not projetos.slug_valido(projeto):
+        projeto = None
+    try:
+        buscas_salvas.criar(
+            acesso.usuario_atual(), request.form.get("nome", ""), request.form.get("q", ""),
+            request.form.get("parametros", ""), projeto,
+            request.form.get("frequencia", "nenhuma"), request.form.get("alerta_email", ""),
+        )
+    except ValueError as e:
+        return render_template("erro.html", titulo="Não consegui salvar a busca", mensagem=str(e)), 400
+    except Exception as e:
+        return _buscas_indisponivel(e)
+    return redirect("/buscas-salvas?ok=criada")
+
+
+@app.route("/buscas-salvas/<int:busca_id>", methods=["GET", "POST"])
+def buscas_salvas_editar(busca_id):
+    dono = acesso.usuario_atual()
+    try:
+        busca = buscas_salvas.obter(busca_id, dono)
+    except Exception as e:
+        return _buscas_indisponivel(e)
+    if not busca:
+        abort(404, "Busca salva não encontrada.")
+    erro = None
+    dados = {"nome": busca["nome"], "frequencia": busca["frequencia"], "alerta_email": busca["alerta_email"] or ""}
+    if request.method == "POST":
+        dados = {k: request.form.get(k, "") for k in dados}
+        try:
+            buscas_salvas.atualizar(busca_id, dono, dados["nome"], dados["frequencia"], dados["alerta_email"])
+            return redirect("/buscas-salvas?ok=salva")
+        except ValueError as e:
+            erro = str(e)
+        except Exception as e:
+            erro = f"Erro ao salvar: {e}"
+    return render_template(
+        "busca_salva_form.html", busca=busca, dados=dados, erro=erro,
+        frequencias=buscas_salvas.FREQUENCIAS, limite_nome=buscas_salvas.LIMITE_NOME,
+    )
+
+
+@app.route("/buscas-salvas/<int:busca_id>/apagar", methods=["POST"])
+def buscas_salvas_apagar(busca_id):
+    try:
+        buscas_salvas.apagar(busca_id, acesso.usuario_atual())
+    except Exception as e:
+        return _buscas_indisponivel(e)
+    return redirect("/buscas-salvas?ok=apagada")
 
 
 ROTAS_ANTIGAS = {"/ingest": "/admin/documentos", "/fila": "/admin/fila", "/indices": "/admin/indices"}

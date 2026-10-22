@@ -1,8 +1,9 @@
-"""E-mails automáticos: relatórios agendados e alertas do sistema (e, na
-próxima etapa, os alertas das buscas salvas).
+"""E-mails automáticos: relatórios agendados, alertas do sistema e alertas
+das buscas salvas (buscas_salvas.py).
 
 Um agendador em segundo plano acorda a cada minuto e:
 - envia os relatórios agendados cujo horário chegou (relatorios.py);
+- envia os alertas de documentos novos das buscas salvas que venceram;
 - a cada ALERTAS_A_CADA, procura problemas novos — passada de fonte com erro,
   documento com erro na fila de indexação, índice com saúde vermelha — e manda
   um único e-mail com tudo o que ainda não tinha sido avisado.
@@ -24,6 +25,7 @@ import email_envio
 import fontes
 import indices
 import jobs
+import buscas_salvas
 import relatorios
 from db import conectar
 from opensearch_client import OpenSearchClient
@@ -147,6 +149,10 @@ def _uma_volta():
             relatorios.marcar_envio(relatorio, "Enviado")
         except Exception as e:
             relatorios.marcar_envio(relatorio, f"Erro: {e}")
+    try:
+        buscas_salvas.processar_alertas(_opensearch(), conf)
+    except Exception as e:
+        print(f"[Notificações] Falha nos alertas das buscas salvas: {e}")
     if time.monotonic() - _ultima_verificacao >= ALERTAS_A_CADA:
         _ultima_verificacao = time.monotonic()
         try:

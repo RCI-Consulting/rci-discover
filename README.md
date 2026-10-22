@@ -442,3 +442,30 @@ A primeira passada numa pasta grande manda **tudo** para o Docling, que leva min
 ## Arquivos
 - Novos: `configuracoes.py`, `email_envio.py`, `notificacoes.py`, `relatorios.py`, `templates/email_admin.html`, `relatorios_admin.html`, `relatorio_form.html`.
 - Alterados: `auditoria.py` (`exportar`), `web_app.py`, `templates/auditoria.html`, `_admin_abas.html` (as abas quebram em duas linhas quando não cabem), `static/style.css`.
+
+22/10/2026 (2)
+
+# Buscas salvas com alerta de documentos novos
+- **☆ Salvar busca** (ao lado do total de resultados): guarda o termo, os filtros (índice, tipo, data), os temas, a ordem e o projeto.
+- **Alerta por e-mail** (opcional, no mesmo popup):
+  - **Frequência:** todo dia ou toda segunda-feira, às **7h de Brasília**.
+  - **Conteúdo:** os documentos que **entraram ou foram atualizados** desde o último aviso, com a mesma consulta da tela (pesos, sinônimos do dicionário, filtros e temas). Lista até 25, cada um com link para o preview, mais um link para abrir a busca.
+  - **Sem novidade, não chega e-mail.**
+  - **Se o envio falhar,** os documentos entram no próximo aviso.
+- **Buscas salvas** (menu do topo): lista com abrir, editar (nome e alerta) e apagar. Ligar o alerta de uma busca antiga não manda o que entrou enquanto o alerta estava desligado.
+- **Sem login (por enquanto):**
+  - o dono de toda busca é "anônimo", então todo mundo vê e edita as mesmas buscas salvas, e o e-mail do alerta é digitado na hora;
+  - quando o login entrar, só `acesso.usuario_atual()` muda e cada pessoa passa a ver as suas.
+- **Tabela nova:** `buscas_salvas` no MySQL, criada sozinha.
+- **Envio:** os alertas usam o SMTP de Administração → E-mail e rodam no mesmo agendador dos relatórios.
+
+## Como foi testado
+- **Simulado:** OpenSearch e MySQL simulados.
+- **Parâmetros:** guardados sem página nem lixo da URL.
+- **Consulta:** link de volta e consulta de documentos novos (data, filtros e temas).
+- **Envio:** e-mail com HTML escapado e links; sem novidade não envia; falha não avança a data.
+- **Telas:** salvar, listar, editar e 404. O popup foi conferido no navegador.
+
+## Arquivos
+- Novos: `buscas_salvas.py`, `templates/buscas_salvas.html`, `busca_salva_form.html`.
+- Alterados: `acesso.py` (`usuario_atual`), `notificacoes.py`, `web_app.py`, `templates/index.html`, `_topbar.html`, `static/style.css`.

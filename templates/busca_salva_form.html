@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Editar busca salva — RCI Search{% endblock %}
+{% block content %}
+<div class="page is-results">
+  {% set ativo = 'buscas_salvas' %}
+  {% include '_topbar.html' %}
+
+  <main class="tabela-area">
+    <h1>Editar busca salva</h1>
+    <p class="busca-salva-q">"{{ busca.q }}"{% if busca.projeto %} · projeto {{ busca.projeto }}{% endif %}{% if busca.filtros_texto %} · {{ busca.filtros_texto }}{% endif %}
+      · <a href="{{ busca.link }}">abrir</a></p>
+
+    {% if erro %}<div class="alert alert-error">{{ erro }}</div>{% endif %}
+
+    <form method="post" class="form-projeto">
+      <label class="campo"><span>Nome</span>
+        <input type="text" name="nome" value="{{ dados.nome }}" maxlength="{{ limite_nome }}" required autofocus></label>
+      <label class="campo"><span>Avisar por e-mail quando entrar documento novo</span>
+        <select name="frequencia">
+          {% for f, rotulo in frequencias %}<option value="{{ f }}" {{ 'selected' if f == dados.frequencia }}>{{ rotulo }}</option>{% endfor %}
+        </select></label>
+      <label class="campo"><span>E-mail <span class="hint">(obrigatório com alerta)</span></span>
+        <input type="text" name="alerta_email" value="{{ dados.alerta_email }}" placeholder="voce@rciit.com"></label>
+      <p class="hint">Os alertas saem às 7h (Brasília) e trazem os documentos indexados ou atualizados desde o último aviso. Sem novidade, não chega e-mail.</p>
+      <div class="acoes-form">
+        <button type="submit" class="btn-prim">Salvar</button>
+        <a href="/buscas-salvas" class="voltar-btn">Cancelar</a>
+      </div>
+    </form>
+
+    <form method="post" action="/buscas-salvas/{{ busca.id }}/apagar" class="apagar-termo">
+      <button type="submit" class="btn-perigo" onclick="return confirm('Apagar esta busca salva?')">Apagar busca</button>
+    </form>
+  </main>
+</div>
+{% endblock %}

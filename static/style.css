@@ -1147,3 +1147,10 @@ form.inline { display: inline; margin-right: 10px; }
 .tabela .destinatarios { font-size: 12.5px; overflow-wrap: anywhere; max-width: 260px; }
 .senha-smtp { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
 .senha-smtp .hint { margin: 0; }
+
+/* Buscas salvas */
+.link-botao { border: none; background: none; padding: 0; font: inherit; color: var(--rci-blue); cursor: pointer; }
+.link-botao:hover { text-decoration: underline; }
+.form-dialogo { max-width: none; margin: 0; }
+.form-dialogo .acoes-form { justify-content: flex-end; }
+.busca-salva-q { font-size: 13px; color: var(--rci-text-muted); overflow-wrap: anywhere; }

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Buscas salvas — RCI Search{% endblock %}
+{% block content %}
+<div class="page is-results">
+  {% set ativo = 'buscas_salvas' %}
+  {% include '_topbar.html' %}
+
+  <main class="tabela-area">
+    <h1>Buscas salvas</h1>
+    <p class="hint">
+      Salve uma busca pelo link <strong>☆ Salvar busca</strong> da tela de resultados. Ela guarda o termo, os filtros, os temas e a ordem,
+      e pode avisar por e-mail quando entrarem documentos novos ou atualizados.
+      {% if sem_login %}<br>Ainda sem login: todo mundo vê e pode mudar as mesmas buscas salvas.{% endif %}
+    </p>
+
+    {% if erro %}<div class="alert alert-error">{{ erro }}</div>{% endif %}
+    {% if sucesso %}<div class="alert alert-ok">{{ sucesso }}</div>{% endif %}
+
+    {% if buscas %}
+      <table class="tabela">
+        <thead><tr><th>Busca</th><th>Alerta</th><th></th></tr></thead>
+        <tbody>
+          {% for b in buscas %}
+            <tr>
+              <td>
+                <a href="{{ b.link }}"><strong>{{ b.nome }}</strong></a>
+                <div class="busca-salva-q">"{{ b.q }}"{% if b.projeto %} · projeto {{ b.projeto }}{% endif %}{% if b.filtros_texto %} · {{ b.filtros_texto }}{% endif %}</div>
+              </td>
+              <td>
+                {% if b.frequencia == 'nenhuma' %}<span class="hint">—</span>
+                {% else %}
+                  {{ b.frequencia_texto }} <span class="hint">para {{ b.alerta_email }}</span>
+                  {% if b.ultimo_status %}<div class="msg-job">{{ b.ultimo_status }}</div>{% endif %}
+                {% endif %}
+              </td>
+              <td class="nowrap"><a href="{{ b.link }}">Abrir</a> · <a href="/buscas-salvas/{{ b.id }}">Editar</a></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% elif not erro %}
+      <div class="empty">Nenhuma busca salva ainda. <a href="/busca">Fazer uma busca</a></div>
+    {% endif %}
+  </main>
+</div>
+{% endblock %}
