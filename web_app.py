@@ -13,10 +13,10 @@ OpenSearch (evita expor usuário/senha do cluster no front-end).
 """
 
 import os
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from urllib.parse import quote, urlencode
 
-from flask import Flask, abort, jsonify, redirect, render_template, request, send_file, send_from_directory
+from flask import Flask, Response, abort, jsonify, redirect, render_template, request, send_file, send_from_directory
 from opensearchpy.exceptions import RequestError
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import secure_filename
@@ -24,14 +24,18 @@ from werkzeug.utils import secure_filename
 import acesso
 import auditoria
 import config
+import configuracoes
 import crawler
 import destaques
 import dicionario
+import email_envio
 import facetas
 import fontes
 import indices
 import jobs
+import notificacoes
 import projetos
+import relatorios
 import relevancia
 import sugestoes
 import temas
@@ -1044,6 +1048,206 @@ def admin_fonte_apagar(fonte_id):
     return redirect("/admin/fontes?ok=apagada")
 
 
+@app.route("/admin/auditoria/exportar")
+def auditoria_exportar():
+    """CSV com todas as buscas do filtro da tela (período e termo)."""
+    try:
+        dias = int(request.args.get("dias", 7))
+    except ValueError:
+        dias = 7
+    if dias not in {d for d, _ in PERIODOS_AUDITORIA}:
+        dias = 7
+    termo = request.args.get("termo", "").strip()[:200]
+    try:
+        linhas, _cortou = auditoria.exportar(dias, termo)
+    except Exception as e:
+        return render_template("erro.html", titulo="Auditoria indisponível", mensagem=f"Banco de dados indisponível: {e}"), 503
+    nome = f"auditoria-buscas-{(datetime.now(timezone.utc) + timedelta(hours=config.FUSO_HORAS)):%Y%m%d-%H%M}.csv"
+    return Response(
+        relatorios.csv_auditoria(linhas), mimetype="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{nome}"', "Cache-Control": "no-store"},
+    )
+
+
+def _email_indisponivel(e):
+    return render_template("erro.html", titulo="Configurações indisponíveis", mensagem=f"Banco de dados indisponível: {e}"), 503
+
+
+@app.route("/admin/email", methods=["GET", "POST"])
+def admin_email():
+    """Servidor SMTP, endereço do site para os links e alertas do sistema.
+    A senha do SMTP só vem da variável SMTP_SENHA (Dokploy)."""
+    erro = sucesso = None
+    try:
+        conf = configuracoes.ler_todas()
+    except Exception as e:
+        return _email_indisponivel(e)
+
+    if request.method == "POST":
+        acao = request.form.get("acao")
+        try:
+            if acao == "smtp":
+                porta = request.form.get("smtp_porta", "").strip()
+                if porta and not (porta.isdigit() and 0 < int(porta) < 65536):
+                    raise ValueError("Porta inválida.")
+                seguranca = request.form.get("smtp_seguranca")
+                if seguranca not in {"starttls", "ssl", "nenhuma"}:
+                    raise ValueError("Escolha o tipo de conexão.")
+                remetente = request.form.get("smtp_remetente", "").strip()
+                if remetente:
+                    email_envio.separar_emails(remetente)
+                url_base = request.form.get("url_base", "").strip().rstrip("/")
+                if url_base and not url_base.startswith(("http://", "https://")):
+                    raise ValueError("O endereço do RCISearch deve começar com http:// ou https://.")
+                conf.update({
+                    "smtp_host": request.form.get("smtp_host", "").strip()[:255], "smtp_porta": porta,
+                    "smtp_seguranca": seguranca, "smtp_usuario": request.form.get("smtp_usuario", "").strip()[:255],
+                    "smtp_remetente": remetente[:255], "url_base": url_base[:255],
+                })
+                configuracoes.salvar(conf)
+                sucesso = "Servidor de e-mail salvo."
+            elif acao == "teste":
+                destino = email_envio.separar_emails(request.form.get("destino", ""))
+                if not destino:
+                    raise ValueError("Informe para quem mandar o e-mail de teste.")
+                email_envio.enviar(
+                    destino, "RCISearch — e-mail de teste",
+                    "<p style='font-family:Arial,sans-serif'>Se você recebeu esta mensagem, o envio de e-mails do RCISearch está funcionando.</p>",
+                    origem="teste", conf=conf,
+                )
+                sucesso = f"E-mail de teste enviado para {', '.join(destino)}."
+            elif acao == "alertas":
+                destinatarios = email_envio.separar_emails(request.form.get("alertas_destinatarios", ""))
+                ativos = bool(request.form.get("alertas_ativos"))
+                if ativos and not destinatarios:
+                    raise ValueError("Informe quem recebe os alertas.")
+                conf.update({
+                    "alertas_ativos": "1" if ativos else "0",
+                    "alertas_destinatarios": ", ".join(destinatarios),
+                    "alertas_fontes": "1" if request.form.get("alertas_fontes") else "0",
+                    "alertas_fila": "1" if request.form.get("alertas_fila") else "0",
+                    "alertas_indices": "1" if request.form.get("alertas_indices") else "0",
+                })
+                configuracoes.salvar(conf)
+                sucesso = "Alertas salvos."
+            elif acao == "verificar":
+                n = notificacoes.verificar_alertas(conf, forcar=True)
+                sucesso = f"{n} alerta(s) novo(s) enviado(s)." if n else "Nenhum problema novo para avisar agora."
+        except (ValueError, RuntimeError) as e:
+            erro = str(e)
+        except Exception as e:
+            erro = f"Erro: {e}"
+
+    envios = []
+    try:
+        envios = email_envio.ultimos_envios()
+        for e in envios:
+            e["enviado_local"] = _hora_local(e["enviado_em"])
+    except Exception:
+        pass
+    return render_template(
+        "email_admin.html", conf=conf, erro=erro, sucesso=sucesso, envios=envios,
+        senha_definida=email_envio.senha_definida(), configurado=email_envio.configurado(conf),
+    )
+
+
+@app.route("/admin/relatorios")
+def admin_relatorios():
+    erro = None
+    lista = []
+    try:
+        lista = relatorios.listar()
+        for r in lista:
+            r["proxima_local"] = _hora_local(r["proxima_em"])
+            r["ultimo_local"] = _hora_local(r["ultimo_envio"])
+    except Exception as e:
+        erro = f"Banco de dados dos relatórios indisponível: {e}"
+    configurado = False
+    try:
+        configurado = email_envio.configurado()
+    except Exception:
+        pass
+    mensagens = {"criado": "Relatório agendado.", "salvo": "Relatório salvo.", "apagado": "Relatório apagado.", "enviado": "Relatório enviado agora."}
+    return render_template(
+        "relatorios_admin.html", relatorios=lista, erro=erro, configurado=configurado,
+        sucesso=mensagens.get(request.args.get("ok")),
+    )
+
+
+def _formulario_relatorio(relatorio):
+    erro = None
+    if relatorio:
+        dados = {k: relatorio[k] for k in ("nome", "periodo_dias", "frequencia", "hora", "destinatarios")}
+        dados["ativo"] = bool(relatorio["ativo"])
+    else:
+        dados = {"nome": "Buscas da semana", "periodo_dias": 7, "frequencia": "semanal", "hora": 8, "destinatarios": "", "ativo": True}
+    if request.method == "POST":
+        dados = {
+            "nome": request.form.get("nome", ""), "periodo_dias": request.form.get("periodo_dias", 7, type=int),
+            "frequencia": request.form.get("frequencia", ""), "hora": request.form.get("hora", 8, type=int),
+            "destinatarios": request.form.get("destinatarios", ""),
+            "ativo": bool(request.form.get("ativo")) if relatorio else True,
+        }
+        try:
+            campos = relatorios.validar(dados["nome"], dados["periodo_dias"], dados["frequencia"], dados["hora"], dados["destinatarios"])
+            if relatorio:
+                relatorios.atualizar(relatorio["id"], *campos, dados["ativo"])
+                return redirect("/admin/relatorios?ok=salvo")
+            relatorios.criar(*campos)
+            return redirect("/admin/relatorios?ok=criado")
+        except ValueError as e:
+            erro = str(e)
+        except Exception as e:
+            erro = f"Erro ao salvar o relatório: {e}"
+    return render_template(
+        "relatorio_form.html", relatorio=relatorio, dados=dados, erro=erro,
+        periodos=relatorios.PERIODOS, frequencias=relatorios.FREQUENCIAS, limite_nome=relatorios.LIMITE_NOME,
+    )
+
+
+def _relatorio_ou_erro(relatorio_id):
+    try:
+        relatorio = relatorios.obter(relatorio_id)
+    except Exception as e:
+        return None, _email_indisponivel(e)
+    if not relatorio:
+        abort(404, "Relatório não encontrado.")
+    return relatorio, None
+
+
+@app.route("/admin/relatorios/novo", methods=["GET", "POST"])
+def admin_relatorio_novo():
+    return _formulario_relatorio(None)
+
+
+@app.route("/admin/relatorios/<int:relatorio_id>", methods=["GET", "POST"])
+def admin_relatorio_editar(relatorio_id):
+    relatorio, erro = _relatorio_ou_erro(relatorio_id)
+    return erro or _formulario_relatorio(relatorio)
+
+
+@app.route("/admin/relatorios/<int:relatorio_id>/enviar", methods=["POST"])
+def admin_relatorio_enviar(relatorio_id):
+    """Envia agora, sem mudar a agenda."""
+    relatorio, erro = _relatorio_ou_erro(relatorio_id)
+    if erro:
+        return erro
+    try:
+        relatorios.enviar(relatorio)
+    except Exception as e:
+        return render_template("erro.html", titulo="Não consegui enviar o relatório", mensagem=str(e)), 502
+    return redirect("/admin/relatorios?ok=enviado")
+
+
+@app.route("/admin/relatorios/<int:relatorio_id>/apagar", methods=["POST"])
+def admin_relatorio_apagar(relatorio_id):
+    try:
+        relatorios.apagar(relatorio_id)
+    except Exception as e:
+        return _email_indisponivel(e)
+    return redirect("/admin/relatorios?ok=apagado")
+
+
 ROTAS_ANTIGAS = {"/ingest": "/admin/documentos", "/fila": "/admin/fila", "/indices": "/admin/indices"}
 
 
@@ -1123,6 +1327,7 @@ def _deve_iniciar_workers():
 if _deve_iniciar_workers():
     worker.iniciar()
     crawler.iniciar()
+    notificacoes.iniciar()
 
 
 if __name__ == "__main__":

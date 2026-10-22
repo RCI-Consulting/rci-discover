@@ -19,6 +19,7 @@
       <input type="text" name="termo" value="{{ termo }}" placeholder="Filtrar por termo" maxlength="200">
       <button type="submit" class="btn-sec">Filtrar</button>
       {% if termo or dias != 7 %}<a href="/admin/auditoria" class="hint">Limpar</a>{% endif %}
+      <a href="/admin/auditoria/exportar?dias={{ dias }}&termo={{ termo|urlencode }}" class="btn-sec link-exportar" title="Todas as buscas deste filtro, para abrir no Excel">Exportar CSV ↓</a>
     </form>
 
     {% if erro %}

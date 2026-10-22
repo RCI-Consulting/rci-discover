@@ -750,16 +750,18 @@ code { background: var(--rci-bg-soft); border-radius: 4px; padding: 1px 5px; fon
 /* Área de administração */
 .abas-admin {
   display: flex;
-  gap: 4px;
+  flex-wrap: wrap;
+  gap: 0 2px;
   width: 100%;
-  max-width: 920px;
+  max-width: 1080px;
   margin: 0 auto;
   padding: 0 20px;
   border-bottom: 1px solid var(--rci-border);
 }
 
 .abas-admin a {
-  padding: 8px 14px;
+  white-space: nowrap;
+  padding: 8px 11px;
   margin-bottom: -1px;
   color: var(--rci-text-muted);
   text-decoration: none;
@@ -1130,3 +1132,18 @@ form.inline { display: inline; margin-right: 10px; }
 .item-indice-nome { color: var(--rci-navy); font-weight: 600; overflow-wrap: anywhere; }
 .item-indice-docs { font-size: 12.5px; color: var(--rci-text-muted); white-space: nowrap; }
 .dialogo-rodape { margin: 10px 0 0 0; padding-top: 8px; border-top: 1px solid var(--rci-border); font-size: 12.5px; color: var(--rci-text-muted); }
+
+/* Exportar auditoria */
+.link-exportar { margin-left: auto; text-decoration: none; color: var(--rci-navy); font-size: 13.5px; }
+
+/* E-mail e relatórios */
+.secao-config { margin: 8px 0 28px 0; padding-bottom: 8px; border-bottom: 1px solid var(--rci-border); }
+.secao-config:last-child { border-bottom: none; }
+.linha-campos { display: flex; gap: 12px; flex-wrap: wrap; }
+.campo-largo { flex: 1 1 260px; }
+.campo-curto { flex: 0 1 120px; }
+.form-projeto .campo .badge { margin-right: 6px; }
+.form-teste-email { max-width: 520px; }
+.tabela .destinatarios { font-size: 12.5px; overflow-wrap: anywhere; max-width: 260px; }
+.senha-smtp { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.senha-smtp .hint { margin: 0; }

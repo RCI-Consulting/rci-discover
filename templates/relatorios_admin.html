@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Relatórios — Administração — RCI Search{% endblock %}
+{% block content %}
+<div class="page is-results">
+  {% set ativo = 'admin' %}{% set aba = 'relatorios' %}
+  {% include '_topbar.html' %}
+  {% include '_admin_abas.html' %}
+
+  <main class="tabela-area">
+    <h1>Relatórios agendados</h1>
+    <p class="hint">
+      Relatórios da <a href="/admin/auditoria">auditoria das buscas</a> enviados por e-mail: totais, termos mais buscados,
+      buscas sem resultado e o CSV completo do período em anexo. Para baixar na hora, use <strong>Exportar CSV</strong> na tela da auditoria.
+    </p>
+
+    {% if erro %}<div class="alert alert-error">{{ erro }}</div>{% endif %}
+    {% if sucesso %}<div class="alert alert-ok">{{ sucesso }}</div>{% endif %}
+    {% if not configurado and not erro %}
+      <div class="alert alert-error">O servidor de e-mail ainda não foi configurado. Os relatórios só saem depois de <a href="/admin/email">configurar o SMTP</a>.</div>
+    {% endif %}
+
+    <p><a href="/admin/relatorios/novo" class="btn-prim">Novo relatório</a></p>
+
+    {% if relatorios %}
+      <table class="tabela">
+        <thead><tr><th>Relatório</th><th>Agenda</th><th>Para</th><th>Último envio</th><th></th></tr></thead>
+        <tbody>
+          {% for r in relatorios %}
+            <tr>
+              <td><strong>{{ r.nome }}</strong>{% if not r.ativo %} <span class="hint">(pausado)</span>{% endif %}<br><span class="hint">{{ r.tipo_texto }} · {{ r.periodo_texto }}</span></td>
+              <td class="nowrap">{{ r.frequencia_texto }}, {{ r.hora }}h
+                {% if r.ativo and r.proxima_local %}<br><span class="hint">próximo: {{ r.proxima_local.strftime('%d/%m %H:%M') }}</span>{% endif %}</td>
+              <td class="destinatarios">{{ r.destinatarios }}</td>
+              <td>
+                {% if r.ultimo_local %}
+                  <span class="badge badge-{{ 'concluido' if r.ultimo_status == 'Enviado' else 'erro' }}">{{ 'Enviado' if r.ultimo_status == 'Enviado' else 'Erro' }}</span>
+                  <span class="hint">{{ r.ultimo_local.strftime('%d/%m %H:%M') }}</span>
+                  {% if r.ultimo_status != 'Enviado' %}<div class="msg-job">{{ r.ultimo_status }}</div>{% endif %}
+                {% else %}<span class="hint">Ainda não enviado</span>{% endif %}
+              </td>
+              <td class="nowrap">
+                <form method="post" action="/admin/relatorios/{{ r.id }}/enviar" class="inline">
+                  <button type="submit" class="btn-sec" {{ 'disabled' if not configurado }}>Enviar agora</button>
+                </form>
+                <a href="/admin/relatorios/{{ r.id }}">Editar</a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% elif not erro %}
+      <div class="empty">Nenhum relatório agendado ainda.</div>
+    {% endif %}
+  </main>
+</div>
+{% endblock %}

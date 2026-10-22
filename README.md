@@ -402,3 +402,43 @@ A primeira passada numa pasta grande manda **tudo** para o Docling, que leva min
 ## Arquivos
 - Novos: `fontes.py`, `crawler.py`, `templates/fontes_admin.html`, `fonte_form.html`.
 - Alterados: `web_app.py` (rotas `/admin/fontes...`, agendador sobe com o app, apagar índice apaga as fontes), `jobs.py` (`enfileirar_lote`), `opensearch_client.py` (`apagar_documento(s)`), `config.py`, `templates/_admin_abas.html`, `static/style.css`.
+
+22/10/2026
+
+# Exportar auditoria, e-mail (SMTP), relatórios agendados e alertas do sistema
+- **Exportar CSV** (Administração → Auditoria): baixa **todas** as buscas do filtro da tela (período e termo), até 100 mil linhas.
+  - Formato do Excel em português: `;` como separador, UTF-8 com BOM, data/hora em Brasília.
+  - Termos que começam com `=`, `+`, `-` ou `@` ganham um `'` na frente. Sem isso, o Excel executaria como fórmula um termo buscado de propósito (*CSV injection*).
+- **Administração → E-mail:**
+  - **Servidor SMTP:** servidor, porta, conexão (STARTTLS, SSL ou nenhuma), usuário, remetente e o **endereço do RCISearch**, usado nos links dos e-mails. Tudo fica na tabela `configuracoes` e muda sem redeploy.
+  - **Senha:** vem **só** da variável `SMTP_SENHA` no Dokploy. Não vai para o banco e não aparece na tela; a tela só diz se ela está definida.
+  - **Enviar teste:** manda um e-mail para conferir a configuração.
+  - **Últimos envios:** os 20 últimos e-mails, com o erro quando falhou (tabela `emails_enviados`).
+  - **Alertas do sistema:** um e-mail quando aparece problema novo. A verificação roda a cada 10 min, olha as últimas 48 h e cobre:
+    - passada de fonte com erro;
+    - documento com erro na fila;
+    - índice com saúde vermelha.
+
+    Cada problema é avisado **uma vez** (tabela `alertas_enviados`). Se o envio falhar, o problema entra no próximo e-mail. **Verificar agora** força a checagem.
+- **Administração → Relatórios:** relatórios da auditoria por e-mail.
+  - **Configuração:** período (24 h, 7, 30 ou 90 dias), frequência (diária, toda segunda ou dia 1º do mês), horário em Brasília e destinatários.
+  - **Conteúdo:** totais, os 10 mais buscados, os 10 sem resultado e o **CSV do período em anexo**.
+  - **Enviar agora:** envia sem mudar a agenda.
+  - **Se o envio falhar:** o erro aparece na lista e o relatório tenta de novo na próxima data, sem insistir a cada minuto.
+- **Agendador** (`notificacoes.py`): roda a cada minuto. Com vários processos, só um envia (`GET_LOCK`).
+
+## Variáveis de ambiente novas (Dokploy)
+- `SMTP_SENHA`: senha da conta SMTP. Para Office 365, use uma conta com *SMTP AUTH* habilitado.
+- `NOTIFICACOES_DESATIVADAS=1` (opcional) não sobe o agendador.
+
+## Como foi testado
+- **Envio real** para um servidor SMTP local de teste (`aiosmtpd`): relatório com anexo e destinatários em cópia oculta, e-mail de teste, falha de conexão virando mensagem legível.
+- **Agenda:** cálculo da próxima data em vários casos (antes e depois do horário, segunda-feira, virada de mês e de ano, meia-noite em Brasília).
+- **Alertas:** sem repetição, só o novo, desligado não envia, falha de envio reavisa depois.
+- **CSV:** fórmula neutralizada, `;` dentro do termo, fuso horário.
+- **Telas** conferidas no navegador; validações de porta, URL, e-mails, período e frequência.
+- **Não testado contra o MySQL real nem contra o Office 365.**
+
+## Arquivos
+- Novos: `configuracoes.py`, `email_envio.py`, `notificacoes.py`, `relatorios.py`, `templates/email_admin.html`, `relatorios_admin.html`, `relatorio_form.html`.
+- Alterados: `auditoria.py` (`exportar`), `web_app.py`, `templates/auditoria.html`, `_admin_abas.html` (as abas quebram em duas linhas quando não cabem), `static/style.css`.
