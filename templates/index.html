@@ -71,7 +71,8 @@
     {% endif %}
     {% if not erro %}
       <div class="results-meta">
-        <span>{{ total }} resultado(s) para "{{ q }}"{% if filtrando or temas_ativos %} <span class="hint">· filtrado</span>{% endif %}{% if paginas > 1 %} · página {{ pagina }} de {{ paginas }}{% endif %}</span>
+        <span>{{ total }} resultado(s) para "{{ q }}"{% if filtrando or temas_ativos %} <span class="hint">· filtrado</span>{% endif %}{% if paginas > 1 %} · página {{ pagina }} de {{ paginas }}{% endif %}
+          · <button type="button" class="link-botao" id="abrir-salvar-busca" aria-haspopup="dialog">☆ Salvar busca</button></span>
         {% if total > 1 %}
           <nav class="ordenacao" aria-label="Ordenar resultados">Ordenar:
             {% for chave, rotulo, _ in ordenacoes %}
@@ -97,6 +98,7 @@
           <span class="meta">{{ d.nome }} · {{ d.tipo }} · <span class="tag-indice">{{ d.indice_nome }}</span></span>
           <span class="acoes">
             <a class="preview-link" href="/preview/{{ d.indice }}/{{ d.id }}">Visualizar</a>
+            <button type="button" class="link-botao btn-pasta" data-indice="{{ d.indice }}" data-doc="{{ d.id }}" data-titulo="{{ d.titulo }}">Salvar na pasta</button>
             <a class="download" href="/download/{{ d.indice }}/{{ d.id }}">Baixar original ↓</a>
           </span>
         </div>
@@ -120,6 +122,7 @@
           <span class="meta">{{ r.nome }} · {{ r.tipo }} · <span class="tag-indice">{{ r.indice_nome }}</span></span>
           <span class="acoes">
             <a class="preview-link" href="/preview/{{ r.indice }}/{{ r.id }}">Visualizar</a>
+            <button type="button" class="link-botao btn-pasta" data-indice="{{ r.indice }}" data-doc="{{ r.id }}" data-titulo="{{ r.titulo }}">Salvar na pasta</button>
             <a class="download" href="/download/{{ r.indice }}/{{ r.id }}">Baixar original ↓</a>
           </span>
         </div>
@@ -149,6 +152,45 @@
       {% endif %}
     {% endif %}
     </div>
+
+    <dialog id="dialogo-salvar-busca" class="dialogo" aria-labelledby="salvar-busca-titulo">
+      <form method="post" action="/buscas-salvas/salvar" class="form-projeto form-dialogo">
+        <div class="dialogo-topo">
+          <h2 id="salvar-busca-titulo">Salvar busca</h2>
+          <button type="button" class="dialogo-fechar" data-fechar aria-label="Fechar">×</button>
+        </div>
+        <input type="hidden" name="q" value="{{ q }}">
+        <input type="hidden" name="parametros" value="{{ parametros_salvar }}">
+        <input type="hidden" name="projeto" value="{{ projeto.slug if projeto else '' }}">
+        <label class="campo"><span>Nome</span>
+          <input type="text" name="nome" value="{{ q[:100] }}" maxlength="100" required></label>
+        <label class="campo"><span>Avisar por e-mail quando entrar documento novo</span>
+          <select name="frequencia" id="frequencia-alerta">
+            {% for f, rotulo in frequencias_alerta %}<option value="{{ f }}">{{ rotulo }}</option>{% endfor %}
+          </select></label>
+        <label class="campo" id="campo-alerta-email" hidden><span>E-mail</span>
+          <input type="text" name="alerta_email" placeholder="voce@rciit.com"></label>
+        <p class="hint">Guarda também os filtros, temas e a ordem desta tela.</p>
+        <div class="acoes-form"><button type="submit" class="btn-prim">Salvar</button></div>
+      </form>
+    </dialog>
+    <script>
+    (function () {
+      var d = document.getElementById("dialogo-salvar-busca");
+      var botao = document.getElementById("abrir-salvar-busca");
+      if (!d || !botao) return;
+      botao.addEventListener("click", function () { d.showModal(); d.querySelector('input[name="nome"]').select(); });
+      d.querySelector("[data-fechar]").addEventListener("click", function () { d.close(); });
+      d.addEventListener("click", function (e) { if (e.target === d) d.close(); });
+      var freq = document.getElementById("frequencia-alerta"), campo = document.getElementById("campo-alerta-email");
+      freq.addEventListener("change", function () {
+        campo.hidden = freq.value === "nenhuma";
+        campo.querySelector("input").required = !campo.hidden;
+      });
+    })();
+    </script>
+
+    {% include '_salvar_pasta.html' %}
 
     <aside class="coluna-direita temas" aria-label="Temas dos resultados">
     {% if temas %}

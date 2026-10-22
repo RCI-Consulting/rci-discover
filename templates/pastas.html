@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Pastas — RCI Search{% endblock %}
+{% block content %}
+<div class="page is-results">
+  {% set ativo = 'pastas' %}
+  {% include '_topbar.html' %}
+
+  <main class="tabela-area">
+    <h1>Pastas de trabalho</h1>
+    <p class="hint">
+      Guarde documentos da busca com <strong>Salvar na pasta</strong> (nos resultados ou no preview). Pastas <strong>privadas</strong> só você vê;
+      as <strong>públicas</strong> todo mundo vê, mas só quem criou mexe nelas.
+      {% if sem_login %}<br>Ainda sem login: todo mundo é o mesmo usuário, então as pastas privadas aparecem para todos.{% endif %}
+    </p>
+
+    {% if erro %}<div class="alert alert-error">{{ erro }}</div>{% endif %}
+    {% if sucesso %}<div class="alert alert-ok">{{ sucesso }}</div>{% endif %}
+
+    <form method="post" action="/pastas/nova" class="form-nova-pasta">
+      <input type="text" name="nome" maxlength="{{ limite_nome }}" placeholder="Nome da nova pasta" required>
+      <label class="faceta-item"><input type="checkbox" name="publica" value="1"> Pública</label>
+      <button type="submit" class="btn-prim">Criar pasta</button>
+    </form>
+
+    <h2>Minhas pastas</h2>
+    {% if minhas %}
+      <div class="grade-pastas">
+        {% for p in minhas %}
+          <a class="card-pasta" href="/pastas/{{ p.id }}">
+            <strong>{{ p.nome }}</strong>
+            <span class="hint">{{ p.itens }} documento(s) · {{ 'pública' if p.publica else 'privada' }}</span>
+          </a>
+        {% endfor %}
+      </div>
+    {% elif not erro %}
+      <p class="hint">Você ainda não tem pastas.</p>
+    {% endif %}
+
+    {% if publicas %}
+      <h2>Pastas públicas</h2>
+      <div class="grade-pastas">
+        {% for p in publicas %}
+          <a class="card-pasta" href="/pastas/{{ p.id }}">
+            <strong>{{ p.nome }}</strong>
+            <span class="hint">{{ p.itens }} documento(s){% if p.dono %} · de {{ p.dono }}{% endif %}</span>
+          </a>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </main>
+</div>
+{% endblock %}

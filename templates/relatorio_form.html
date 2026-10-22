@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Editar relatório' if relatorio else 'Novo relatório' }} — RCI Search{% endblock %}
+{% block content %}
+<div class="page is-results">
+  {% set ativo = 'admin' %}{% set aba = 'relatorios' %}
+  {% include '_topbar.html' %}
+  {% include '_admin_abas.html' %}
+
+  <main class="tabela-area">
+    <h1>{{ 'Editar relatório' if relatorio else 'Novo relatório' }}</h1>
+    <p class="hint">Relatório da auditoria das buscas, com o CSV do período em anexo.</p>
+
+    {% if erro %}<div class="alert alert-error">{{ erro }}</div>{% endif %}
+
+    <form method="post" class="form-projeto">
+      <label class="campo"><span>Nome</span>
+        <input type="text" name="nome" value="{{ dados.nome }}" maxlength="{{ limite_nome }}" required></label>
+      <label class="campo"><span>Período coberto</span>
+        <select name="periodo_dias">
+          {% for d, rotulo in periodos %}<option value="{{ d }}" {{ 'selected' if d == dados.periodo_dias }}>{{ rotulo }}</option>{% endfor %}
+        </select></label>
+      <div class="linha-campos">
+        <label class="campo campo-largo"><span>Quando enviar</span>
+          <select name="frequencia">
+            {% for f, rotulo in frequencias %}<option value="{{ f }}" {{ 'selected' if f == dados.frequencia }}>{{ rotulo }}</option>{% endfor %}
+          </select></label>
+        <label class="campo campo-curto"><span>Horário</span>
+          <select name="hora">
+            {% for h in range(24) %}<option value="{{ h }}" {{ 'selected' if h == dados.hora }}>{{ '%02d' % h }}:00</option>{% endfor %}
+          </select></label>
+      </div>
+      <label class="campo"><span>Para <span class="hint">(e-mails separados por vírgula)</span></span>
+        <textarea name="destinatarios" rows="2" required placeholder="gestor@rciit.com, ti@rciit.com">{{ dados.destinatarios }}</textarea></label>
+      {% if relatorio %}
+        <label class="faceta-item campo-check"><input type="checkbox" name="ativo" value="1" {{ 'checked' if dados.ativo }}> <span>Ativo <span class="hint">(desmarque para pausar)</span></span></label>
+      {% endif %}
+      <div class="acoes-form">
+        <button type="submit" class="btn-prim">{{ 'Salvar' if relatorio else 'Agendar' }}</button>
+        <a href="/admin/relatorios" class="voltar-btn">Cancelar</a>
+      </div>
+    </form>
+
+    {% if relatorio %}
+      <form method="post" action="/admin/relatorios/{{ relatorio.id }}/apagar" class="apagar-termo">
+        <button type="submit" class="btn-perigo" onclick="return confirm('Apagar este relatório?')">Apagar relatório</button>
+      </form>
+    {% endif %}
+  </main>
+</div>
+{% endblock %}

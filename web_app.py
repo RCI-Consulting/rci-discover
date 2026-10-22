@@ -13,25 +13,31 @@ OpenSearch (evita expor usuário/senha do cluster no front-end).
 """
 
 import os
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from urllib.parse import quote, urlencode
 
-from flask import Flask, abort, jsonify, redirect, render_template, request, send_file, send_from_directory
+from flask import Flask, Response, abort, jsonify, redirect, render_template, request, send_file, send_from_directory
 from opensearchpy.exceptions import RequestError
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import secure_filename
 
 import acesso
 import auditoria
+import buscas_salvas
 import config
+import configuracoes
 import crawler
 import destaques
 import dicionario
+import email_envio
 import facetas
 import fontes
 import indices
 import jobs
+import notificacoes
+import pastas
 import projetos
+import relatorios
 import relevancia
 import sugestoes
 import temas
@@ -266,6 +272,8 @@ def _pesquisar(q, alvo, projeto=None):
 def _tela_busca(q, alvo, projeto=None):
     return render_template(
         "index.html", q=q, projeto=projeto, acao=f"/p/{projeto['slug']}" if projeto else "/busca",
+        parametros_salvar=buscas_salvas.parametros_da_tela(request.args),
+        frequencias_alerta=buscas_salvas.FREQUENCIAS,
         **_pesquisar(q, alvo, projeto),
     )
 
@@ -840,6 +848,10 @@ def indice_apagar(nome):
                     fontes.apagar_do_indice(nome)
                 except Exception:
                     pass
+                try:
+                    pastas.remover_do_indice(nome)
+                except Exception:
+                    pass
                 return redirect(f"/admin/indices?apagado={exibicao}")
 
     return render_template("indice_apagar.html", exibicao=exibicao, docs=docs, erro=erro)
@@ -1044,6 +1056,456 @@ def admin_fonte_apagar(fonte_id):
     return redirect("/admin/fontes?ok=apagada")
 
 
+@app.route("/admin/auditoria/exportar")
+def auditoria_exportar():
+    """CSV com todas as buscas do filtro da tela (período e termo)."""
+    try:
+        dias = int(request.args.get("dias", 7))
+    except ValueError:
+        dias = 7
+    if dias not in {d for d, _ in PERIODOS_AUDITORIA}:
+        dias = 7
+    termo = request.args.get("termo", "").strip()[:200]
+    try:
+        linhas, _cortou = auditoria.exportar(dias, termo)
+    except Exception as e:
+        return render_template("erro.html", titulo="Auditoria indisponível", mensagem=f"Banco de dados indisponível: {e}"), 503
+    nome = f"auditoria-buscas-{(datetime.now(timezone.utc) + timedelta(hours=config.FUSO_HORAS)):%Y%m%d-%H%M}.csv"
+    return Response(
+        relatorios.csv_auditoria(linhas), mimetype="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{nome}"', "Cache-Control": "no-store"},
+    )
+
+
+def _email_indisponivel(e):
+    return render_template("erro.html", titulo="Configurações indisponíveis", mensagem=f"Banco de dados indisponível: {e}"), 503
+
+
+@app.route("/admin/email", methods=["GET", "POST"])
+def admin_email():
+    """Servidor SMTP, endereço do site para os links e alertas do sistema.
+    A senha do SMTP só vem da variável SMTP_SENHA (Dokploy)."""
+    erro = sucesso = None
+    try:
+        conf = configuracoes.ler_todas()
+    except Exception as e:
+        return _email_indisponivel(e)
+
+    if request.method == "POST":
+        acao = request.form.get("acao")
+        try:
+            if acao == "smtp":
+                porta = request.form.get("smtp_porta", "").strip()
+                if porta and not (porta.isdigit() and 0 < int(porta) < 65536):
+                    raise ValueError("Porta inválida.")
+                seguranca = request.form.get("smtp_seguranca")
+                if seguranca not in {"starttls", "ssl", "nenhuma"}:
+                    raise ValueError("Escolha o tipo de conexão.")
+                remetente = request.form.get("smtp_remetente", "").strip()
+                if remetente:
+                    email_envio.separar_emails(remetente)
+                url_base = request.form.get("url_base", "").strip().rstrip("/")
+                if url_base and not url_base.startswith(("http://", "https://")):
+                    raise ValueError("O endereço do RCISearch deve começar com http:// ou https://.")
+                conf.update({
+                    "smtp_host": request.form.get("smtp_host", "").strip()[:255], "smtp_porta": porta,
+                    "smtp_seguranca": seguranca, "smtp_usuario": request.form.get("smtp_usuario", "").strip()[:255],
+                    "smtp_remetente": remetente[:255], "url_base": url_base[:255],
+                })
+                configuracoes.salvar(conf)
+                sucesso = "Servidor de e-mail salvo."
+            elif acao == "teste":
+                destino = email_envio.separar_emails(request.form.get("destino", ""))
+                if not destino:
+                    raise ValueError("Informe para quem mandar o e-mail de teste.")
+                email_envio.enviar(
+                    destino, "RCISearch — e-mail de teste",
+                    "<p style='font-family:Arial,sans-serif'>Se você recebeu esta mensagem, o envio de e-mails do RCISearch está funcionando.</p>",
+                    origem="teste", conf=conf,
+                )
+                sucesso = f"E-mail de teste enviado para {', '.join(destino)}."
+            elif acao == "alertas":
+                destinatarios = email_envio.separar_emails(request.form.get("alertas_destinatarios", ""))
+                ativos = bool(request.form.get("alertas_ativos"))
+                if ativos and not destinatarios:
+                    raise ValueError("Informe quem recebe os alertas.")
+                conf.update({
+                    "alertas_ativos": "1" if ativos else "0",
+                    "alertas_destinatarios": ", ".join(destinatarios),
+                    "alertas_fontes": "1" if request.form.get("alertas_fontes") else "0",
+                    "alertas_fila": "1" if request.form.get("alertas_fila") else "0",
+                    "alertas_indices": "1" if request.form.get("alertas_indices") else "0",
+                })
+                configuracoes.salvar(conf)
+                sucesso = "Alertas salvos."
+            elif acao == "verificar":
+                n = notificacoes.verificar_alertas(conf, forcar=True)
+                sucesso = f"{n} alerta(s) novo(s) enviado(s)." if n else "Nenhum problema novo para avisar agora."
+        except (ValueError, RuntimeError) as e:
+            erro = str(e)
+        except Exception as e:
+            erro = f"Erro: {e}"
+
+    envios = []
+    try:
+        envios = email_envio.ultimos_envios()
+        for e in envios:
+            e["enviado_local"] = _hora_local(e["enviado_em"])
+    except Exception:
+        pass
+    return render_template(
+        "email_admin.html", conf=conf, erro=erro, sucesso=sucesso, envios=envios,
+        senha_definida=email_envio.senha_definida(), configurado=email_envio.configurado(conf),
+    )
+
+
+@app.route("/admin/relatorios")
+def admin_relatorios():
+    erro = None
+    lista = []
+    try:
+        lista = relatorios.listar()
+        for r in lista:
+            r["proxima_local"] = _hora_local(r["proxima_em"])
+            r["ultimo_local"] = _hora_local(r["ultimo_envio"])
+    except Exception as e:
+        erro = f"Banco de dados dos relatórios indisponível: {e}"
+    configurado = False
+    try:
+        configurado = email_envio.configurado()
+    except Exception:
+        pass
+    mensagens = {"criado": "Relatório agendado.", "salvo": "Relatório salvo.", "apagado": "Relatório apagado.", "enviado": "Relatório enviado agora."}
+    return render_template(
+        "relatorios_admin.html", relatorios=lista, erro=erro, configurado=configurado,
+        sucesso=mensagens.get(request.args.get("ok")),
+    )
+
+
+def _formulario_relatorio(relatorio):
+    erro = None
+    if relatorio:
+        dados = {k: relatorio[k] for k in ("nome", "periodo_dias", "frequencia", "hora", "destinatarios")}
+        dados["ativo"] = bool(relatorio["ativo"])
+    else:
+        dados = {"nome": "Buscas da semana", "periodo_dias": 7, "frequencia": "semanal", "hora": 8, "destinatarios": "", "ativo": True}
+    if request.method == "POST":
+        dados = {
+            "nome": request.form.get("nome", ""), "periodo_dias": request.form.get("periodo_dias", 7, type=int),
+            "frequencia": request.form.get("frequencia", ""), "hora": request.form.get("hora", 8, type=int),
+            "destinatarios": request.form.get("destinatarios", ""),
+            "ativo": bool(request.form.get("ativo")) if relatorio else True,
+        }
+        try:
+            campos = relatorios.validar(dados["nome"], dados["periodo_dias"], dados["frequencia"], dados["hora"], dados["destinatarios"])
+            if relatorio:
+                relatorios.atualizar(relatorio["id"], *campos, dados["ativo"])
+                return redirect("/admin/relatorios?ok=salvo")
+            relatorios.criar(*campos)
+            return redirect("/admin/relatorios?ok=criado")
+        except ValueError as e:
+            erro = str(e)
+        except Exception as e:
+            erro = f"Erro ao salvar o relatório: {e}"
+    return render_template(
+        "relatorio_form.html", relatorio=relatorio, dados=dados, erro=erro,
+        periodos=relatorios.PERIODOS, frequencias=relatorios.FREQUENCIAS, limite_nome=relatorios.LIMITE_NOME,
+    )
+
+
+def _relatorio_ou_erro(relatorio_id):
+    try:
+        relatorio = relatorios.obter(relatorio_id)
+    except Exception as e:
+        return None, _email_indisponivel(e)
+    if not relatorio:
+        abort(404, "Relatório não encontrado.")
+    return relatorio, None
+
+
+@app.route("/admin/relatorios/novo", methods=["GET", "POST"])
+def admin_relatorio_novo():
+    return _formulario_relatorio(None)
+
+
+@app.route("/admin/relatorios/<int:relatorio_id>", methods=["GET", "POST"])
+def admin_relatorio_editar(relatorio_id):
+    relatorio, erro = _relatorio_ou_erro(relatorio_id)
+    return erro or _formulario_relatorio(relatorio)
+
+
+@app.route("/admin/relatorios/<int:relatorio_id>/enviar", methods=["POST"])
+def admin_relatorio_enviar(relatorio_id):
+    """Envia agora, sem mudar a agenda."""
+    relatorio, erro = _relatorio_ou_erro(relatorio_id)
+    if erro:
+        return erro
+    try:
+        relatorios.enviar(relatorio)
+    except Exception as e:
+        return render_template("erro.html", titulo="Não consegui enviar o relatório", mensagem=str(e)), 502
+    return redirect("/admin/relatorios?ok=enviado")
+
+
+@app.route("/admin/relatorios/<int:relatorio_id>/apagar", methods=["POST"])
+def admin_relatorio_apagar(relatorio_id):
+    try:
+        relatorios.apagar(relatorio_id)
+    except Exception as e:
+        return _email_indisponivel(e)
+    return redirect("/admin/relatorios?ok=apagado")
+
+
+def _buscas_indisponivel(e):
+    return render_template("erro.html", titulo="Buscas salvas indisponíveis", mensagem=f"Banco de dados indisponível: {e}"), 503
+
+
+@app.route("/buscas-salvas")
+def buscas_salvas_pagina():
+    erro = None
+    lista = []
+    try:
+        lista = buscas_salvas.listar(acesso.usuario_atual())
+        for b in lista:
+            b["proxima_local"] = _hora_local(b["proxima_em"])
+    except Exception as e:
+        erro = f"Banco de dados das buscas salvas indisponível: {e}"
+    mensagens = {"criada": "Busca salva.", "salva": "Busca salva.", "apagada": "Busca apagada."}
+    return render_template(
+        "buscas_salvas.html", buscas=lista, erro=erro, sucesso=mensagens.get(request.args.get("ok")),
+        sem_login=acesso.usuario_atual() is None,
+    )
+
+
+@app.route("/buscas-salvas/salvar", methods=["POST"])
+def buscas_salvas_salvar():
+    """Vem do botão "Salvar busca" da tela de resultados."""
+    projeto = request.form.get("projeto", "").strip() or None
+    if projeto and not projetos.slug_valido(projeto):
+        projeto = None
+    try:
+        buscas_salvas.criar(
+            acesso.usuario_atual(), request.form.get("nome", ""), request.form.get("q", ""),
+            request.form.get("parametros", ""), projeto,
+            request.form.get("frequencia", "nenhuma"), request.form.get("alerta_email", ""),
+        )
+    except ValueError as e:
+        return render_template("erro.html", titulo="Não consegui salvar a busca", mensagem=str(e)), 400
+    except Exception as e:
+        return _buscas_indisponivel(e)
+    return redirect("/buscas-salvas?ok=criada")
+
+
+@app.route("/buscas-salvas/<int:busca_id>", methods=["GET", "POST"])
+def buscas_salvas_editar(busca_id):
+    dono = acesso.usuario_atual()
+    try:
+        busca = buscas_salvas.obter(busca_id, dono)
+    except Exception as e:
+        return _buscas_indisponivel(e)
+    if not busca:
+        abort(404, "Busca salva não encontrada.")
+    erro = None
+    dados = {"nome": busca["nome"], "frequencia": busca["frequencia"], "alerta_email": busca["alerta_email"] or ""}
+    if request.method == "POST":
+        dados = {k: request.form.get(k, "") for k in dados}
+        try:
+            buscas_salvas.atualizar(busca_id, dono, dados["nome"], dados["frequencia"], dados["alerta_email"])
+            return redirect("/buscas-salvas?ok=salva")
+        except ValueError as e:
+            erro = str(e)
+        except Exception as e:
+            erro = f"Erro ao salvar: {e}"
+    return render_template(
+        "busca_salva_form.html", busca=busca, dados=dados, erro=erro,
+        frequencias=buscas_salvas.FREQUENCIAS, limite_nome=buscas_salvas.LIMITE_NOME,
+    )
+
+
+@app.route("/buscas-salvas/<int:busca_id>/apagar", methods=["POST"])
+def buscas_salvas_apagar(busca_id):
+    try:
+        buscas_salvas.apagar(busca_id, acesso.usuario_atual())
+    except Exception as e:
+        return _buscas_indisponivel(e)
+    return redirect("/buscas-salvas?ok=apagada")
+
+
+def _pastas_indisponivel(e):
+    return render_template("erro.html", titulo="Pastas indisponíveis", mensagem=f"Banco de dados indisponível: {e}"), 503
+
+
+def _pasta_ou_erro(pasta_id, editar=False):
+    """(pasta, resposta de erro). Pasta privada de outra pessoa responde 404,
+    para não revelar que ela existe."""
+    usuario = acesso.usuario_atual()
+    try:
+        pasta = pastas.obter(pasta_id)
+    except Exception as e:
+        return None, _pastas_indisponivel(e)
+    if not pastas.pode_ver(pasta, usuario) and not acesso.eh_admin():
+        abort(404, "Pasta não encontrada.")
+    if not pasta:
+        abort(404, "Pasta não encontrada.")
+    if editar and not pastas.pode_editar(pasta, usuario, acesso.eh_admin()):
+        abort(403)
+    return pasta, None
+
+
+@app.route("/pastas")
+def pastas_pagina():
+    usuario = acesso.usuario_atual()
+    erro = None
+    minhas, publicas = [], []
+    try:
+        minhas, publicas = pastas.listar(usuario)
+    except Exception as e:
+        erro = f"Banco de dados das pastas indisponível: {e}"
+    mensagens = {"apagada": "Pasta apagada."}
+    return render_template(
+        "pastas.html", minhas=minhas, publicas=publicas, erro=erro, sem_login=usuario is None,
+        sucesso=mensagens.get(request.args.get("ok")), limite_nome=pastas.LIMITE_NOME,
+    )
+
+
+@app.route("/pastas/nova", methods=["POST"])
+def pastas_nova():
+    try:
+        pasta_id = pastas.criar(acesso.usuario_atual(), request.form.get("nome", ""), request.form.get("descricao", ""),
+                                bool(request.form.get("publica")))
+    except ValueError as e:
+        return render_template("erro.html", titulo="Não consegui criar a pasta", mensagem=str(e)), 400
+    except Exception as e:
+        return _pastas_indisponivel(e)
+    return redirect(f"/pastas/{pasta_id}?ok=criada")
+
+
+@app.route("/pastas/<int:pasta_id>", methods=["GET", "POST"])
+def pasta_ver(pasta_id):
+    pasta, erro = _pasta_ou_erro(pasta_id)
+    if erro:
+        return erro
+    usuario = acesso.usuario_atual()
+    editavel = pastas.pode_editar(pasta, usuario, acesso.eh_admin())
+    mensagem_erro = None
+    if request.method == "POST":
+        if not editavel:
+            abort(403)
+        try:
+            pastas.atualizar(pasta_id, request.form.get("nome", ""), request.form.get("descricao", ""), bool(request.form.get("publica")))
+            return redirect(f"/pastas/{pasta_id}?ok=salva")
+        except ValueError as e:
+            mensagem_erro = str(e)
+        except Exception as e:
+            return _pastas_indisponivel(e)
+    try:
+        lista = pastas.itens(pasta_id)
+    except Exception as e:
+        return _pastas_indisponivel(e)
+    try:
+        vivos = cliente.existentes([(i["indice"], i["doc_id"]) for i in lista])
+    except Exception:
+        vivos = None  # OpenSearch fora: não marca nada como sumido
+    for item in lista:
+        item["indice_nome"] = indices.nome_exibicao(item["indice"])
+        item["tipo"] = extensao(item["nome"]).upper() or "Documento"
+        item["sumiu"] = vivos is not None and (item["indice"], item["doc_id"]) not in vivos
+        item["adicionado_local"] = _hora_local(item["adicionado_em"])
+    mensagens = {"criada": "Pasta criada. Para guardar documentos, use \"Salvar na pasta\" na busca ou no preview.",
+                 "salva": "Pasta salva.", "removido": "Documento tirado da pasta."}
+    return render_template(
+        "pasta.html", pasta=pasta, itens=lista, editavel=editavel, erro=mensagem_erro,
+        sucesso=mensagens.get(request.args.get("ok")), limite_nome=pastas.LIMITE_NOME,
+        limite_descricao=pastas.LIMITE_DESCRICAO, limite_nota=pastas.LIMITE_NOTA,
+    )
+
+
+@app.route("/pastas/<int:pasta_id>/apagar", methods=["POST"])
+def pasta_apagar(pasta_id):
+    _pasta, erro = _pasta_ou_erro(pasta_id, editar=True)
+    if erro:
+        return erro
+    try:
+        pastas.apagar(pasta_id)
+    except Exception as e:
+        return _pastas_indisponivel(e)
+    return redirect("/pastas?ok=apagada")
+
+
+@app.route("/pastas/<int:pasta_id>/remover", methods=["POST"])
+def pasta_remover(pasta_id):
+    _pasta, erro = _pasta_ou_erro(pasta_id, editar=True)
+    if erro:
+        return erro
+    try:
+        pastas.remover(pasta_id, request.form.get("indice", ""), request.form.get("doc", ""))
+    except Exception as e:
+        return _pastas_indisponivel(e)
+    return redirect(f"/pastas/{pasta_id}?ok=removido")
+
+
+@app.route("/pastas/<int:pasta_id>/nota", methods=["POST"])
+def pasta_nota(pasta_id):
+    _pasta, erro = _pasta_ou_erro(pasta_id, editar=True)
+    if erro:
+        return erro
+    try:
+        pastas.anotar(pasta_id, request.form.get("indice", ""), request.form.get("doc", ""), request.form.get("nota", ""))
+    except ValueError as e:
+        return render_template("erro.html", titulo="Nota longa demais", mensagem=str(e)), 400
+    except Exception as e:
+        return _pastas_indisponivel(e)
+    return redirect(f"/pastas/{pasta_id}")
+
+
+@app.route("/pastas/do-documento")
+def pastas_do_documento():
+    """JSON para o popup "Salvar na pasta": as pastas do usuário e se cada
+    uma já tem o documento."""
+    try:
+        lista = pastas.editaveis(acesso.usuario_atual(), request.args.get("indice"), request.args.get("doc"))
+    except Exception as e:
+        return jsonify({"erro": f"Pastas indisponíveis: {e}"}), 503
+    resposta = jsonify({"pastas": [{"id": p["id"], "nome": p["nome"], "publica": bool(p["publica"]), "contem": bool(p["contem"])} for p in lista]})
+    resposta.headers["Cache-Control"] = "no-store"
+    return resposta
+
+
+@app.route("/pastas/documento", methods=["POST"])
+def pastas_documento():
+    """JSON {indice, doc, pasta_id | nova_pasta, guardar}: guarda ou tira o
+    documento de uma pasta do usuário. Só aceita JSON (um formulário de outro
+    site não consegue mandar esse tipo sem permissão do navegador)."""
+    dados = request.get_json(silent=True)
+    if not isinstance(dados, dict):
+        return jsonify({"erro": "Pedido inválido."}), 400
+    usuario = acesso.usuario_atual()
+    doc_id = str(dados.get("doc") or "")
+    indice, doc = _documento(str(dados.get("indice") or ""), doc_id)
+    if doc is None:
+        return jsonify({"erro": "Documento não encontrado no índice."}), 404
+    try:
+        if dados.get("nova_pasta"):
+            pasta_id = pastas.criar(usuario, str(dados["nova_pasta"]), "", False)
+        else:
+            pasta_id = int(dados.get("pasta_id") or 0)
+        pasta = pastas.obter(pasta_id)
+        if not pastas.pode_editar(pasta, usuario, acesso.eh_admin()):
+            return jsonify({"erro": "Pasta não encontrada."}), 404
+        fonte = doc["_source"]
+        if dados.get("guardar", True):
+            pastas.adicionar(pasta_id, indice, doc_id, fonte.get("nome"), fonte.get("titulo"), usuario)
+            mensagem = f"Guardado em \"{pasta['nome']}\"."
+        else:
+            pastas.remover(pasta_id, indice, doc_id)
+            mensagem = f"Tirado de \"{pasta['nome']}\"."
+    except ValueError as e:
+        return jsonify({"erro": str(e)}), 400
+    except Exception as e:
+        return jsonify({"erro": f"Pastas indisponíveis: {e}"}), 503
+    return jsonify({"ok": True, "mensagem": mensagem, "pasta_id": pasta_id})
+
+
 ROTAS_ANTIGAS = {"/ingest": "/admin/documentos", "/fila": "/admin/fila", "/indices": "/admin/indices"}
 
 
@@ -1123,6 +1585,7 @@ def _deve_iniciar_workers():
 if _deve_iniciar_workers():
     worker.iniciar()
     crawler.iniciar()
+    notificacoes.iniciar()
 
 
 if __name__ == "__main__":

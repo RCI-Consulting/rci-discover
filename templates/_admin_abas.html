@@ -1,10 +1,26 @@
-<nav class="abas-admin" aria-label="Administração">
-  <a href="/admin/indices"{% if aba == 'indices' %} class="active"{% endif %}>Índices</a>
-  <a href="/admin/projetos"{% if aba == 'projetos' %} class="active"{% endif %}>Projetos</a>
-  <a href="/admin/dicionario"{% if aba == 'dicionario' %} class="active"{% endif %}>Dicionário</a>
-  <a href="/admin/destaques"{% if aba == 'destaques' %} class="active"{% endif %}>Destaques</a>
-  <a href="/admin/fontes"{% if aba == 'fontes' %} class="active"{% endif %}>Fontes</a>
-  <a href="/admin/documentos"{% if aba == 'documentos' %} class="active"{% endif %}>Adicionar documento</a>
-  <a href="/admin/fila"{% if aba == 'fila' %} class="active"{% endif %}>Fila</a>
-  <a href="/admin/auditoria"{% if aba == 'auditoria' %} class="active"{% endif %}>Auditoria</a>
+{# Menu lateral da administração, agrupado por área. Cada tela só define `aba`.
+   O layout em duas colunas (menu + conteúdo) está no style.css (.page:has(> .menu-admin)). #}
+{% set areas = [
+  ('Acervo', [('indices', 'Índices', '/admin/indices'), ('projetos', 'Projetos', '/admin/projetos'), ('fontes', 'Fontes', '/admin/fontes')]),
+  ('Indexação', [('documentos', 'Adicionar documento', '/admin/documentos'), ('fila', 'Fila', '/admin/fila')]),
+  ('Busca', [('dicionario', 'Dicionário', '/admin/dicionario'), ('destaques', 'Destaques', '/admin/destaques')]),
+  ('Auditoria', [('auditoria', 'Buscas', '/admin/auditoria'), ('relatorios', 'Relatórios', '/admin/relatorios')]),
+  ('Configurações', [('email', 'E-mail', '/admin/email')]),
+] %}
+<nav class="menu-admin" aria-label="Administração">
+  {% for rotulo, telas in areas %}
+    <div class="menu-admin-grupo">
+      <span class="menu-admin-titulo">{{ rotulo }}</span>
+      {% for chave, nome, link in telas %}
+        <a href="{{ link }}"{% if chave == aba %} class="active" aria-current="page"{% endif %}>{{ nome }}</a>
+      {% endfor %}
+    </div>
+  {% endfor %}
 </nav>
+<script>
+  // no celular o menu vira uma faixa rolável: deixa a tela atual à vista
+  (function () {
+    var menu = document.querySelector(".menu-admin"), ativo = menu && menu.querySelector("a.active");
+    if (ativo && menu.scrollWidth > menu.clientWidth) menu.scrollLeft = ativo.offsetLeft - menu.clientWidth / 2 + ativo.offsetWidth / 2;
+  })();
+</script>

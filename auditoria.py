@@ -140,6 +140,25 @@ def listar(dias, termo, pagina=1, por_pagina=50):
             return cur.fetchall(), total
 
 
+LIMITE_EXPORTACAO = 100000
+
+
+def exportar(dias, termo, limite=LIMITE_EXPORTACAO):
+    """Todas as buscas do filtro (mais recentes primeiro), para o CSV.
+    Retorna (linhas, se cortou no limite)."""
+    where, params = _filtro(dias, termo)
+    with conectar() as con:
+        _garantir_tabela(con)
+        with con.cursor() as cur:
+            cur.execute(
+                "SELECT criado_em, termo, total_resultados, filtros, usuario, ip "
+                f"FROM auditoria_buscas {where} ORDER BY id DESC LIMIT %s",
+                params + [int(limite) + 1],
+            )
+            linhas = cur.fetchall()
+    return linhas[:limite], len(linhas) > limite
+
+
 # ---- Sugestões (autocomplete e "buscas populares") -------------------------
 
 def _termo_sensivel(termo):

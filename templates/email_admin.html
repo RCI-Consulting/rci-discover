@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}E-mail — Administração — RCI Search{% endblock %}
+{% block content %}
+<div class="page is-results">
+  {% set ativo = 'admin' %}{% set aba = 'email' %}
+  {% include '_topbar.html' %}
+  {% include '_admin_abas.html' %}
+
+  <main class="tabela-area">
+    <h1>E-mail</h1>
+    <p class="hint">Servidor usado para os <a href="/admin/relatorios">relatórios agendados</a>, os alertas do sistema e os alertas das buscas salvas.</p>
+
+    {% if erro %}<div class="alert alert-error">{{ erro }}</div>{% endif %}
+    {% if sucesso %}<div class="alert alert-ok">{{ sucesso }}</div>{% endif %}
+
+    <section class="secao-config">
+      <h2>Servidor SMTP</h2>
+      <form method="post" class="form-projeto">
+        <input type="hidden" name="acao" value="smtp">
+        <div class="linha-campos">
+          <label class="campo campo-largo"><span>Servidor</span>
+            <input type="text" name="smtp_host" value="{{ conf.smtp_host }}" placeholder="smtp.office365.com"></label>
+          <label class="campo campo-curto"><span>Porta</span>
+            <input type="text" name="smtp_porta" value="{{ conf.smtp_porta }}" inputmode="numeric" placeholder="587"></label>
+        </div>
+        <label class="campo"><span>Conexão</span>
+          <select name="smtp_seguranca">
+            <option value="starttls" {{ 'selected' if conf.smtp_seguranca == 'starttls' }}>STARTTLS (porta 587, o mais comum)</option>
+            <option value="ssl" {{ 'selected' if conf.smtp_seguranca == 'ssl' }}>SSL/TLS direto (porta 465)</option>
+            <option value="nenhuma" {{ 'selected' if conf.smtp_seguranca == 'nenhuma' }}>Sem criptografia (só relay interno)</option>
+          </select></label>
+        <label class="campo"><span>Usuário <span class="hint">(vazio = servidor sem autenticação)</span></span>
+          <input type="text" name="smtp_usuario" value="{{ conf.smtp_usuario }}" autocomplete="off"></label>
+        <div class="campo">
+          <span>Senha</span>
+          <p class="senha-smtp">
+            {% if senha_definida %}<span class="badge badge-concluido">Definida no Dokploy</span>{% else %}<span class="badge badge-fila">Não definida</span>{% endif %}
+            <span class="hint">Cadastre a variável <code>SMTP_SENHA</code> no Dokploy. Ela não fica no banco nem aparece aqui.</span>
+          </p>
+        </div>
+        <label class="campo"><span>Remetente</span>
+          <input type="text" name="smtp_remetente" value="{{ conf.smtp_remetente }}" placeholder="rcisearch@rciit.com"></label>
+        <label class="campo"><span>Endereço do RCISearch <span class="hint">(para os links dentro dos e-mails)</span></span>
+          <input type="text" name="url_base" value="{{ conf.url_base }}" placeholder="https://rcisearch.rciit.com"></label>
+        <div class="acoes-form"><button type="submit" class="btn-prim">Salvar servidor</button></div>
+      </form>
+
+      <form method="post" class="form-dicionario form-teste-email">
+        <input type="hidden" name="acao" value="teste">
+        <input type="text" name="destino" placeholder="Mandar um e-mail de teste para…" {{ 'disabled' if not configurado }}>
+        <button type="submit" class="btn-sec" {{ 'disabled' if not configurado }}>Enviar teste</button>
+      </form>
+      {% if not configurado %}<p class="hint">Salve o servidor e o remetente para poder testar.</p>{% endif %}
+    </section>
+
+    <section class="secao-config">
+      <h2>Alertas do sistema</h2>
+      <p class="hint">Um e-mail quando aparece um problema novo (verificado a cada 10 minutos). Cada problema é avisado uma vez só.</p>
+      <form method="post" class="form-projeto">
+        <label class="faceta-item campo-check"><input type="checkbox" name="alertas_ativos" value="1" {{ 'checked' if conf.alertas_ativos == '1' }}> <span>Enviar alertas</span></label>
+        <label class="campo"><span>Quem recebe <span class="hint">(e-mails separados por vírgula)</span></span>
+          <input type="text" name="alertas_destinatarios" value="{{ conf.alertas_destinatarios }}" placeholder="ti@rciit.com"></label>
+        <fieldset class="campo">
+          <legend>Avisar quando</legend>
+          <label class="faceta-item campo-check"><input type="checkbox" name="alertas_fontes" value="1" {{ 'checked' if conf.alertas_fontes == '1' }}> <span>uma passada de <a href="/admin/fontes">fonte</a> terminar com erro (ex.: compartilhamento fora do ar)</span></label>
+          <label class="faceta-item campo-check"><input type="checkbox" name="alertas_fila" value="1" {{ 'checked' if conf.alertas_fila == '1' }}> <span>um documento der erro na <a href="/admin/fila">fila de indexação</a></span></label>
+          <label class="faceta-item campo-check"><input type="checkbox" name="alertas_indices" value="1" {{ 'checked' if conf.alertas_indices == '1' }}> <span>um <a href="/admin/indices">índice</a> ficar com saúde vermelha no OpenSearch</span></label>
+        </fieldset>
+        <div class="acoes-form">
+          <button type="submit" name="acao" value="alertas" class="btn-prim">Salvar alertas</button>
+          <button type="submit" name="acao" value="verificar" class="btn-sec" {{ 'disabled' if not configurado }} title="Procura problemas agora e manda o que for novo">Verificar agora</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="secao-config">
+      <h2>Últimos envios</h2>
+      {% if envios %}
+        <table class="tabela">
+          <thead><tr><th>Data e hora</th><th>Assunto</th><th>Para</th><th>Situação</th></tr></thead>
+          <tbody>
+            {% for e in envios %}
+              <tr>
+                <td class="nowrap">{{ e.enviado_local.strftime('%d/%m/%Y %H:%M') }}</td>
+                <td>{{ e.assunto }}</td>
+                <td class="destinatarios">{{ e.destinatarios }}</td>
+                <td>{% if e.ok %}<span class="badge badge-concluido">Enviado</span>{% else %}<span class="badge badge-erro">Erro</span><div class="msg-job">{{ e.erro }}</div>{% endif %}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="hint">Nenhum e-mail enviado ainda.</p>
+      {% endif %}
+    </section>
+  </main>
+</div>
+{% endblock %}

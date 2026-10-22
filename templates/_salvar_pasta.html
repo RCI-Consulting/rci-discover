@@ -1,0 +1,83 @@
+{# Popup "Salvar na pasta": aberto pelos botões .btn-pasta (data-indice, data-doc, data-titulo). #}
+<dialog id="dialogo-pasta" class="dialogo" aria-labelledby="dialogo-pasta-titulo">
+  <div class="dialogo-topo">
+    <h2 id="dialogo-pasta-titulo">Salvar na pasta</h2>
+    <button type="button" class="dialogo-fechar" data-fechar aria-label="Fechar">×</button>
+  </div>
+  <p class="hint" id="pasta-doc-titulo"></p>
+  <div class="lista-pastas-dialogo" id="lista-pastas"></div>
+  <form class="nova-pasta-linha" id="form-nova-pasta">
+    <input type="text" name="nome" maxlength="100" placeholder="Nova pasta…" required>
+    <button type="submit" class="btn-sec">Criar e salvar</button>
+  </form>
+  <p class="aviso-pasta" id="aviso-pasta" role="status"></p>
+  <p class="dialogo-rodape"><a href="/pastas">Ver minhas pastas</a></p>
+</dialog>
+<script>
+(function () {
+  var d = document.getElementById("dialogo-pasta");
+  if (!d || d.dataset.pronto) return;
+  d.dataset.pronto = "1";
+  var lista = document.getElementById("lista-pastas"), aviso = document.getElementById("aviso-pasta");
+  var atual = null;
+
+  function avisar(texto, erro) { aviso.textContent = texto || ""; aviso.classList.toggle("erro", !!erro); }
+
+  function enviar(corpo) {
+    return fetch("/pastas/documento", {
+      method: "POST", headers: {"Content-Type": "application/json"}, credentials: "same-origin",
+      body: JSON.stringify(Object.assign({indice: atual.indice, doc: atual.doc}, corpo))
+    }).then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.erro || "Erro"); return j; }); });
+  }
+
+  function desenhar(pastas) {
+    lista.innerHTML = "";
+    if (!pastas.length) {
+      var p = document.createElement("p"); p.className = "hint"; p.textContent = "Você ainda não tem pastas. Crie a primeira abaixo.";
+      lista.appendChild(p); return;
+    }
+    pastas.forEach(function (pasta) {
+      var item = document.createElement("label"); item.className = "item-pasta";
+      var caixa = document.createElement("input"); caixa.type = "checkbox"; caixa.checked = pasta.contem;
+      var nome = document.createElement("span"); nome.textContent = pasta.nome;
+      var tipo = document.createElement("span"); tipo.className = "hint"; tipo.textContent = pasta.publica ? "pública" : "privada";
+      caixa.addEventListener("change", function () {
+        caixa.disabled = true;
+        enviar({pasta_id: pasta.id, guardar: caixa.checked})
+          .then(function (j) { avisar(j.mensagem); })
+          .catch(function (e) { caixa.checked = !caixa.checked; avisar(e.message, true); })
+          .finally(function () { caixa.disabled = false; });
+      });
+      item.append(caixa, nome, tipo);
+      lista.appendChild(item);
+    });
+  }
+
+  function carregar() {
+    lista.innerHTML = '<p class="hint">Carregando…</p>';
+    fetch("/pastas/do-documento?indice=" + encodeURIComponent(atual.indice) + "&doc=" + encodeURIComponent(atual.doc), {credentials: "same-origin"})
+      .then(function (r) { return r.json(); })
+      .then(function (j) { if (j.erro) throw new Error(j.erro); desenhar(j.pastas); })
+      .catch(function (e) { lista.innerHTML = ""; avisar(e.message, true); });
+  }
+
+  document.addEventListener("click", function (e) {
+    var botao = e.target.closest(".btn-pasta");
+    if (!botao) return;
+    atual = {indice: botao.dataset.indice, doc: botao.dataset.doc};
+    document.getElementById("pasta-doc-titulo").textContent = botao.dataset.titulo || "";
+    avisar("");
+    carregar();
+    d.showModal();
+  });
+  document.getElementById("form-nova-pasta").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var campo = this.querySelector("input");
+    enviar({nova_pasta: campo.value})
+      .then(function (j) { avisar(j.mensagem); campo.value = ""; carregar(); })
+      .catch(function (err) { avisar(err.message, true); });
+  });
+  d.querySelector("[data-fechar]").addEventListener("click", function () { d.close(); });
+  d.addEventListener("click", function (e) { if (e.target === d) d.close(); });
+})();
+</script>

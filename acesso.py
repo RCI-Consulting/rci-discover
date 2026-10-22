@@ -9,3 +9,13 @@ Todas as rotas /admin e o link "Administração" do menu já passam por aqui.
 
 def eh_admin():
     return True
+
+
+def usuario_atual():
+    """E-mail de quem está logado, ou None. Sem login (hoje), é sempre None:
+    buscas salvas e pastas privadas ficam de um dono "anônimo" compartilhado."""
+    from flask import session
+    logado = session.get("usuario")
+    if isinstance(logado, dict):
+        logado = logado.get("email") or logado.get("nome")
+    return logado or None
