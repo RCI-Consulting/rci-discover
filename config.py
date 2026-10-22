@@ -63,6 +63,17 @@ SUGESTOES_MIN_BUSCAS = int(os.getenv("SUGESTOES_MIN_BUSCAS", "2"))
 # delas no Dokploy (ex.: /mnt/fontes/juridico).
 FONTES_PASTAS_PERMITIDAS = os.getenv("FONTES_PASTAS_PERMITIDAS", "/mnt/fontes")
 
+# OCR no Docling: lê imagens e PDFs escaneados (sem ele entram sem texto).
+# DOCLING_OCR_FORCAR=1 refaz o OCR até em páginas que já têm texto digital
+# (bem mais lento; só para PDFs com camada de texto ruim).
+DOCLING_OCR = os.getenv("DOCLING_OCR", "1") == "1"
+DOCLING_OCR_FORCAR = os.getenv("DOCLING_OCR_FORCAR", "0") == "1"
+DOCLING_OCR_IDIOMAS = [i.strip() for i in os.getenv("DOCLING_OCR_IDIOMAS", "pt,en").split(",") if i.strip()]
+
+# TXT, DOCX e ODT são lidos direto pelo app (extracao.py), sem o Docling.
+# EXTRACAO_RAPIDA=0 manda tudo para o Docling, como antes.
+EXTRACAO_RAPIDA = os.getenv("EXTRACAO_RAPIDA", "1") == "1"
+
 # Bônus de recência na relevância: um documento indexado agora vale até
 # (1 + PESO_RECENCIA) vezes o mesmo documento antigo. 0 desliga o bônus.
 PESO_RECENCIA = float(os.getenv("PESO_RECENCIA", "0.5"))

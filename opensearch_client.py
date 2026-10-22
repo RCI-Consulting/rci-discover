@@ -98,6 +98,64 @@ class OpenSearchClient:
             return  # índice apagado no meio do caminho: deixa o index() reportar
         self._mapeados.add(index)
 
+    def portugues_ativo(self, index):
+        """Se o índice já tem os subcampos `.pt` (analisador português)."""
+        mapa = self.client.indices.get_mapping(index=index)[index]["mappings"].get("properties", {})
+        return "pt" in mapa.get("conteudo", {}).get("fields", {})
+
+    def ativar_portugues(self, index):
+        """Liga o analisador português num índice criado antes dele:
+        1. registra o analisador nas configurações (o OpenSearch exige o índice
+           fechado para isso: ele fica indisponível por um ou dois segundos);
+        2. acrescenta os subcampos `.pt` em nome, título e conteúdo, sem mexer
+           no que já existe;
+        3. reprocessa os documentos a partir do texto já salvo (sem Docling),
+           em segundo plano. Devolve o id da tarefa no OpenSearch."""
+        self.garantir_mapeamento(index)
+        config = self.client.indices.get_settings(index=index)[index]["settings"]["index"]
+        if indices.ANALISADOR_PT not in config.get("analysis", {}).get("analyzer", {}):
+            self.client.indices.close(index=index)
+            try:
+                self.client.indices.put_settings(index=index, body=indices.ANALISE_PT)
+            finally:
+                self.client.indices.open(index=index, wait_for_active_shards=1)
+        mapa = self.client.indices.get_mapping(index=index)[index]["mappings"].get("properties", {})
+        novos = {}
+        for campo in indices.CAMPOS_COM_PT:
+            atual = mapa.get(campo, {"type": "text"})
+            if atual.get("type", "text") != "text":
+                continue
+            novos[campo] = {**atual, "fields": {**atual.get("fields", {}), "pt": indices.SUBCAMPO_PT}}
+        self.client.indices.put_mapping(index=index, body={"properties": novos})
+        tarefa = self.client.update_by_query(
+            index=index, body={"query": {"match_all": {}}},
+            conflicts="proceed", refresh=True, wait_for_completion=False,
+        )
+        return tarefa.get("task")
+
+    def indices_em_atualizacao(self):
+        """Índices com reprocessamento (update_by_query) rodando agora."""
+        try:
+            resp = self.client.tasks.list(actions="*byquery", detailed=True)
+        except Exception:
+            return set()
+        nomes = set()
+        for no in resp.get("nodes", {}).values():
+            for tarefa in no.get("tasks", {}).values():
+                descricao = tarefa.get("description", "")  # ex.: "update-by-query [rci-rh]"
+                if "[" in descricao:
+                    nomes.update(n.strip() for n in descricao.split("[", 1)[1].split("]", 1)[0].split(","))
+        return nomes
+
+    def listar_sem_texto(self, index, minimo=50):
+        """Gera (id, nome, caminho) dos documentos com menos de `minimo`
+        caracteres de texto — tipicamente PDFs escaneados e imagens indexados
+        antes do OCR. Lê o texto salvo de cada um, então pode demorar em índices grandes."""
+        for hit in helpers.scan(self.client, index=index, query={"query": {"match_all": {}}}, _source=["nome", "caminho", "conteudo"]):
+            fonte = hit.get("_source", {})
+            if len((fonte.get("conteudo") or "").strip()) < minimo:
+                yield hit["_id"], fonte.get("nome"), fonte.get("caminho")
+
     def contar_desatualizados(self, padrao):
         """{índice: quantos documentos ainda não têm os campos das facetas ou o título}."""
         resp = self.client.search(

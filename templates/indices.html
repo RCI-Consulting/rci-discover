@@ -26,9 +26,10 @@
 
     {% if indices %}
       <p class="hint"><strong>Desatualizados</strong>: documentos indexados antes dos filtros da busca (tipo e data) ou do título usado na relevância. "Reindexar" preenche o título na hora, a partir do texto já salvo, e reprocessa pela fila os que não têm tipo e data, usando o arquivo original guardado no servidor (não precisa enviar de novo).</p>
+      <p class="hint"><strong>Português</strong>: com ele ativo, "contratos" acha "contrato" e "acao" acha "ação". "Ativar" reprocessa os documentos a partir do texto já salvo, em segundo plano e sem Docling; o índice fica indisponível por um ou dois segundos no começo.</p>
       <table class="tabela">
         <thead>
-          <tr><th>Índice</th><th>Documentos</th><th>Tamanho</th><th>Saúde</th><th>Desatualizados</th><th></th></tr>
+          <tr><th>Índice</th><th>Documentos</th><th>Tamanho</th><th>Saúde</th><th>Desatualizados</th><th>Português</th><th></th></tr>
         </thead>
         <tbody>
           {% for i in indices %}
@@ -47,9 +48,23 @@
                   </form>
                 {% else %}—{% endif %}
               </td>
-              <td>
+              <td class="nowrap">
+                {% if i.atualizando %}
+                  <span class="badge badge-processando">Atualizando…</span>
+                {% elif i.portugues %}
+                  <span class="badge badge-concluido">Ativo</span>
+                {% elif i.portugues is not none %}
+                  <form method="post" action="/admin/indices/{{ i.nome }}/portugues" class="inline">
+                    <button type="submit" class="btn-sec" onclick="return confirm('Ativar o português neste índice? Ele fica indisponível por um ou dois segundos e os documentos são reprocessados em segundo plano.')">Ativar</button>
+                  </form>
+                {% else %}—{% endif %}
+              </td>
+              <td class="nowrap">
+                <form method="post" action="/admin/indices/{{ i.nome }}/sem-texto" class="inline">
+                  <button type="submit" class="link-botao" title="Manda de novo para o Docling, agora com OCR, os documentos que entraram sem texto (PDF escaneado, imagem)">Refazer sem texto</button>
+                </form>
                 {% if not i.padrao %}
-                  <a class="link-perigo" href="/admin/indices/{{ i.nome }}/apagar">Apagar</a>
+                  · <a class="link-perigo" href="/admin/indices/{{ i.nome }}/apagar">Apagar</a>
                 {% endif %}
               </td>
             </tr>

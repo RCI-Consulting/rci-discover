@@ -1,5 +1,7 @@
 """Relevância, ordenação e paginação da busca.
 
+- **Português:** cada campo tem também a versão `.pt` (sem acento e pelo
+  radical), com peso um pouco menor que a palavra exata.
 - **Pesos por campo:** o `titulo` (primeiro título do documento, ou o nome do
   arquivo limpo) vale mais que o `nome` do arquivo, que vale mais que o texto.
   A frase exata também ganha pontos, além de bater todas as palavras.
@@ -14,7 +16,11 @@
 
 import config
 
-CAMPOS = ["titulo^4", "nome^3", "conteudo"]
+# A palavra exata pesa mais; a variação em português (.pt: sem acento e pelo
+# radical) entra com peso um pouco menor. Índices ainda sem os subcampos .pt
+# simplesmente os ignoram.
+CAMPOS = ["titulo^4", "titulo.pt^3", "nome^3", "nome.pt^2", "conteudo", "conteudo.pt^0.8"]
+DESEMPATE = 0.3  # soma um pouco dos outros campos ao melhor (best_fields)
 
 POR_PAGINA = 10
 LIMITE_JANELA = 10000  # index.max_result_window padrão do OpenSearch
@@ -70,14 +76,14 @@ def montar_consulta(q, expansoes=()):
     consultas alternativas do dicionário (sinônimos/siglas)."""
     should = [
         # todas as palavras, com tolerância a erros de digitação
-        {"multi_match": {"query": q, "fields": CAMPOS, "operator": "and", "fuzziness": "AUTO", "prefix_length": 1}},
+        {"multi_match": {"query": q, "fields": CAMPOS, "operator": "and", "fuzziness": "AUTO", "prefix_length": 1, "tie_breaker": DESEMPATE}},
         # as palavras na ordem digitada (frase exata) valem mais
         {"multi_match": {"query": q, "fields": CAMPOS, "type": "phrase", "boost": 3}},
         # palavra incompleta no fim ("contrat" acha "contrato")
         {"multi_match": {"query": q, "fields": CAMPOS, "type": "phrase_prefix", "boost": 2}},
     ]
     for alt in expansoes:
-        should.append({"multi_match": {"query": alt["consulta"], "fields": CAMPOS, "operator": "and"}})
+        should.append({"multi_match": {"query": alt["consulta"], "fields": CAMPOS, "operator": "and", "tie_breaker": DESEMPATE}})
 
     texto = {"bool": {"should": should, "minimum_should_match": 1}}
     if config.PESO_RECENCIA <= 0:
