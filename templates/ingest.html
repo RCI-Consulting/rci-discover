@@ -24,7 +24,7 @@
             {% endfor %}
           </select>
         </label>
-        <input type="file" name="arquivos" accept=".pdf,.docx,.doc,.txt,.odt,.rtf" multiple required>
+        <input type="file" name="arquivos" accept="{{ extensoes_aceitas }}" multiple required>
         <button type="submit" {{ 'disabled' if not indices }}>Enviar</button>
       </form>
 

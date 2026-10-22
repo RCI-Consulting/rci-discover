@@ -407,6 +407,8 @@ def ingest():
         erro=erro,
         indices=disponiveis,
         indice_selecionado=indice_selecionado,
+        # mesma lista que o servidor aceita (config.EXTENSOES_VALIDAS), para o seletor não esconder nenhum tipo
+        extensoes_aceitas=",".join(sorted(config.EXTENSOES_VALIDAS)),
     )
 
 
