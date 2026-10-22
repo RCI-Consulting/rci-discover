@@ -65,6 +65,13 @@ class OpenSearchClient:
         sucesso, _erros = helpers.bulk(self.client, acoes, raise_on_error=False, stats_only=True)
         return sucesso
 
+    def existentes(self, pares):
+        """Dos pares (índice, id), quais ainda existem no OpenSearch (um pedido só)."""
+        if not pares:
+            return set()
+        resp = self.client.mget(body={"docs": [{"_index": i, "_id": d, "_source": False} for i, d in pares]})
+        return {(doc["_index"], doc["_id"]) for doc in resp.get("docs", []) if doc.get("found")}
+
     def exists(self, index, doc_id):
         return self.client.exists(index=index, id=doc_id)
 

@@ -98,6 +98,7 @@
           <span class="meta">{{ d.nome }} · {{ d.tipo }} · <span class="tag-indice">{{ d.indice_nome }}</span></span>
           <span class="acoes">
             <a class="preview-link" href="/preview/{{ d.indice }}/{{ d.id }}">Visualizar</a>
+            <button type="button" class="link-botao btn-pasta" data-indice="{{ d.indice }}" data-doc="{{ d.id }}" data-titulo="{{ d.titulo }}">Salvar na pasta</button>
             <a class="download" href="/download/{{ d.indice }}/{{ d.id }}">Baixar original ↓</a>
           </span>
         </div>
@@ -121,6 +122,7 @@
           <span class="meta">{{ r.nome }} · {{ r.tipo }} · <span class="tag-indice">{{ r.indice_nome }}</span></span>
           <span class="acoes">
             <a class="preview-link" href="/preview/{{ r.indice }}/{{ r.id }}">Visualizar</a>
+            <button type="button" class="link-botao btn-pasta" data-indice="{{ r.indice }}" data-doc="{{ r.id }}" data-titulo="{{ r.titulo }}">Salvar na pasta</button>
             <a class="download" href="/download/{{ r.indice }}/{{ r.id }}">Baixar original ↓</a>
           </span>
         </div>
@@ -187,6 +189,8 @@
       });
     })();
     </script>
+
+    {% include '_salvar_pasta.html' %}
 
     <aside class="coluna-direita temas" aria-label="Temas dos resultados">
     {% if temas %}

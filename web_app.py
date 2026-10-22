@@ -35,6 +35,7 @@ import fontes
 import indices
 import jobs
 import notificacoes
+import pastas
 import projetos
 import relatorios
 import relevancia
@@ -847,6 +848,10 @@ def indice_apagar(nome):
                     fontes.apagar_do_indice(nome)
                 except Exception:
                     pass
+                try:
+                    pastas.remover_do_indice(nome)
+                except Exception:
+                    pass
                 return redirect(f"/admin/indices?apagado={exibicao}")
 
     return render_template("indice_apagar.html", exibicao=exibicao, docs=docs, erro=erro)
@@ -1324,6 +1329,181 @@ def buscas_salvas_apagar(busca_id):
     except Exception as e:
         return _buscas_indisponivel(e)
     return redirect("/buscas-salvas?ok=apagada")
+
+
+def _pastas_indisponivel(e):
+    return render_template("erro.html", titulo="Pastas indisponíveis", mensagem=f"Banco de dados indisponível: {e}"), 503
+
+
+def _pasta_ou_erro(pasta_id, editar=False):
+    """(pasta, resposta de erro). Pasta privada de outra pessoa responde 404,
+    para não revelar que ela existe."""
+    usuario = acesso.usuario_atual()
+    try:
+        pasta = pastas.obter(pasta_id)
+    except Exception as e:
+        return None, _pastas_indisponivel(e)
+    if not pastas.pode_ver(pasta, usuario) and not acesso.eh_admin():
+        abort(404, "Pasta não encontrada.")
+    if not pasta:
+        abort(404, "Pasta não encontrada.")
+    if editar and not pastas.pode_editar(pasta, usuario, acesso.eh_admin()):
+        abort(403)
+    return pasta, None
+
+
+@app.route("/pastas")
+def pastas_pagina():
+    usuario = acesso.usuario_atual()
+    erro = None
+    minhas, publicas = [], []
+    try:
+        minhas, publicas = pastas.listar(usuario)
+    except Exception as e:
+        erro = f"Banco de dados das pastas indisponível: {e}"
+    mensagens = {"apagada": "Pasta apagada."}
+    return render_template(
+        "pastas.html", minhas=minhas, publicas=publicas, erro=erro, sem_login=usuario is None,
+        sucesso=mensagens.get(request.args.get("ok")), limite_nome=pastas.LIMITE_NOME,
+    )
+
+
+@app.route("/pastas/nova", methods=["POST"])
+def pastas_nova():
+    try:
+        pasta_id = pastas.criar(acesso.usuario_atual(), request.form.get("nome", ""), request.form.get("descricao", ""),
+                                bool(request.form.get("publica")))
+    except ValueError as e:
+        return render_template("erro.html", titulo="Não consegui criar a pasta", mensagem=str(e)), 400
+    except Exception as e:
+        return _pastas_indisponivel(e)
+    return redirect(f"/pastas/{pasta_id}?ok=criada")
+
+
+@app.route("/pastas/<int:pasta_id>", methods=["GET", "POST"])
+def pasta_ver(pasta_id):
+    pasta, erro = _pasta_ou_erro(pasta_id)
+    if erro:
+        return erro
+    usuario = acesso.usuario_atual()
+    editavel = pastas.pode_editar(pasta, usuario, acesso.eh_admin())
+    mensagem_erro = None
+    if request.method == "POST":
+        if not editavel:
+            abort(403)
+        try:
+            pastas.atualizar(pasta_id, request.form.get("nome", ""), request.form.get("descricao", ""), bool(request.form.get("publica")))
+            return redirect(f"/pastas/{pasta_id}?ok=salva")
+        except ValueError as e:
+            mensagem_erro = str(e)
+        except Exception as e:
+            return _pastas_indisponivel(e)
+    try:
+        lista = pastas.itens(pasta_id)
+    except Exception as e:
+        return _pastas_indisponivel(e)
+    try:
+        vivos = cliente.existentes([(i["indice"], i["doc_id"]) for i in lista])
+    except Exception:
+        vivos = None  # OpenSearch fora: não marca nada como sumido
+    for item in lista:
+        item["indice_nome"] = indices.nome_exibicao(item["indice"])
+        item["tipo"] = extensao(item["nome"]).upper() or "Documento"
+        item["sumiu"] = vivos is not None and (item["indice"], item["doc_id"]) not in vivos
+        item["adicionado_local"] = _hora_local(item["adicionado_em"])
+    mensagens = {"criada": "Pasta criada. Para guardar documentos, use \"Salvar na pasta\" na busca ou no preview.",
+                 "salva": "Pasta salva.", "removido": "Documento tirado da pasta."}
+    return render_template(
+        "pasta.html", pasta=pasta, itens=lista, editavel=editavel, erro=mensagem_erro,
+        sucesso=mensagens.get(request.args.get("ok")), limite_nome=pastas.LIMITE_NOME,
+        limite_descricao=pastas.LIMITE_DESCRICAO, limite_nota=pastas.LIMITE_NOTA,
+    )
+
+
+@app.route("/pastas/<int:pasta_id>/apagar", methods=["POST"])
+def pasta_apagar(pasta_id):
+    _pasta, erro = _pasta_ou_erro(pasta_id, editar=True)
+    if erro:
+        return erro
+    try:
+        pastas.apagar(pasta_id)
+    except Exception as e:
+        return _pastas_indisponivel(e)
+    return redirect("/pastas?ok=apagada")
+
+
+@app.route("/pastas/<int:pasta_id>/remover", methods=["POST"])
+def pasta_remover(pasta_id):
+    _pasta, erro = _pasta_ou_erro(pasta_id, editar=True)
+    if erro:
+        return erro
+    try:
+        pastas.remover(pasta_id, request.form.get("indice", ""), request.form.get("doc", ""))
+    except Exception as e:
+        return _pastas_indisponivel(e)
+    return redirect(f"/pastas/{pasta_id}?ok=removido")
+
+
+@app.route("/pastas/<int:pasta_id>/nota", methods=["POST"])
+def pasta_nota(pasta_id):
+    _pasta, erro = _pasta_ou_erro(pasta_id, editar=True)
+    if erro:
+        return erro
+    try:
+        pastas.anotar(pasta_id, request.form.get("indice", ""), request.form.get("doc", ""), request.form.get("nota", ""))
+    except ValueError as e:
+        return render_template("erro.html", titulo="Nota longa demais", mensagem=str(e)), 400
+    except Exception as e:
+        return _pastas_indisponivel(e)
+    return redirect(f"/pastas/{pasta_id}")
+
+
+@app.route("/pastas/do-documento")
+def pastas_do_documento():
+    """JSON para o popup "Salvar na pasta": as pastas do usuário e se cada
+    uma já tem o documento."""
+    try:
+        lista = pastas.editaveis(acesso.usuario_atual(), request.args.get("indice"), request.args.get("doc"))
+    except Exception as e:
+        return jsonify({"erro": f"Pastas indisponíveis: {e}"}), 503
+    resposta = jsonify({"pastas": [{"id": p["id"], "nome": p["nome"], "publica": bool(p["publica"]), "contem": bool(p["contem"])} for p in lista]})
+    resposta.headers["Cache-Control"] = "no-store"
+    return resposta
+
+
+@app.route("/pastas/documento", methods=["POST"])
+def pastas_documento():
+    """JSON {indice, doc, pasta_id | nova_pasta, guardar}: guarda ou tira o
+    documento de uma pasta do usuário. Só aceita JSON (um formulário de outro
+    site não consegue mandar esse tipo sem permissão do navegador)."""
+    dados = request.get_json(silent=True)
+    if not isinstance(dados, dict):
+        return jsonify({"erro": "Pedido inválido."}), 400
+    usuario = acesso.usuario_atual()
+    doc_id = str(dados.get("doc") or "")
+    indice, doc = _documento(str(dados.get("indice") or ""), doc_id)
+    if doc is None:
+        return jsonify({"erro": "Documento não encontrado no índice."}), 404
+    try:
+        if dados.get("nova_pasta"):
+            pasta_id = pastas.criar(usuario, str(dados["nova_pasta"]), "", False)
+        else:
+            pasta_id = int(dados.get("pasta_id") or 0)
+        pasta = pastas.obter(pasta_id)
+        if not pastas.pode_editar(pasta, usuario, acesso.eh_admin()):
+            return jsonify({"erro": "Pasta não encontrada."}), 404
+        fonte = doc["_source"]
+        if dados.get("guardar", True):
+            pastas.adicionar(pasta_id, indice, doc_id, fonte.get("nome"), fonte.get("titulo"), usuario)
+            mensagem = f"Guardado em \"{pasta['nome']}\"."
+        else:
+            pastas.remover(pasta_id, indice, doc_id)
+            mensagem = f"Tirado de \"{pasta['nome']}\"."
+    except ValueError as e:
+        return jsonify({"erro": str(e)}), 400
+    except Exception as e:
+        return jsonify({"erro": f"Pastas indisponíveis: {e}"}), 503
+    return jsonify({"ok": True, "mensagem": mensagem, "pasta_id": pasta_id})
 
 
 ROTAS_ANTIGAS = {"/ingest": "/admin/documentos", "/fila": "/admin/fila", "/indices": "/admin/indices"}

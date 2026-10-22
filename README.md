@@ -469,3 +469,38 @@ A primeira passada numa pasta grande manda **tudo** para o Docling, que leva min
 ## Arquivos
 - Novos: `buscas_salvas.py`, `templates/buscas_salvas.html`, `busca_salva_form.html`.
 - Alterados: `acesso.py` (`usuario_atual`), `notificacoes.py`, `web_app.py`, `templates/index.html`, `_topbar.html`, `static/style.css`.
+
+22/10/2026 (3)
+
+# Pastas de trabalho (públicas e privadas)
+- **Salvar na pasta:** botão em cada resultado da busca (inclusive nos destaques) e no preview.
+  - Abre um popup com as suas pastas. Marcar ou desmarcar guarda ou tira o documento na hora; o popup mostra em quais pastas ele já está.
+  - Dá para **criar uma pasta ali mesmo** e já guardar o documento.
+- **Pastas** (menu do topo):
+  - **Minhas pastas** e **Pastas públicas** de outras pessoas, em cards com a contagem de documentos.
+  - **Página da pasta:** documentos com link para o preview e o download, **nota** por documento, **tirar**, renomear, descrição, pública/privada e apagar.
+  - **Documentos que saíram do índice** continuam listados com o nome guardado e a marca "não está mais no índice", conferida com um `mget` no OpenSearch.
+- **Regras:**
+  - **Privada:** só o dono vê. Para outra pessoa, a pasta responde 404, para nem revelar que existe.
+  - **Pública:** todo mundo vê, só o dono mexe. A administração pode mexer em qualquer uma, para limpar pastas abandonadas.
+  - **Apagar uma pasta** não apaga documentos do índice. **Apagar um índice** tira os documentos dele das pastas.
+- **Sem login (por enquanto):** todo mundo é o mesmo usuário anônimo, então as pastas privadas aparecem para todos. A tela avisa. Com o login, só `acesso.usuario_atual()` muda e as regras passam a valer.
+- **Segurança:**
+  - **Salvar e tirar do popup** usam um pedido JSON. Um formulário de outro site não consegue mandar esse tipo sem permissão do navegador.
+  - **Índice e documento** são validados como nos outros endereços.
+  - **Nomes e notas** são sempre escapados na tela.
+- **Tabelas novas:** `pastas` e `pasta_itens` no MySQL, criadas sozinhas.
+
+## Como foi testado
+- **Pastas em memória** no lugar do MySQL e OpenSearch simulado:
+  - criar pasta, salvar e tirar pelo popup (inclusive "criar e salvar");
+  - recusas: formulário em vez de JSON, índice não gerenciado, documento ou pasta inexistente, nome vazio;
+  - documento que saiu do índice;
+  - escape de nome com HTML;
+  - nota.
+- **Com login simulado:** pasta privada de outra pessoa dá 404; pública aparece sem os controles de edição; apagar ou guardar numa pasta alheia é recusado.
+- **Telas** conferidas no navegador. Os testes das PRs anteriores continuam passando.
+
+## Arquivos
+- Novos: `pastas.py`, `templates/pastas.html`, `pasta.html`, `_salvar_pasta.html`.
+- Alterados: `web_app.py`, `opensearch_client.py` (`existentes`), `templates/index.html`, `preview.html`, `_topbar.html`, `static/style.css`.

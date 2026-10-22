@@ -1154,3 +1154,25 @@ form.inline { display: inline; margin-right: 10px; }
 .form-dialogo { max-width: none; margin: 0; }
 .form-dialogo .acoes-form { justify-content: flex-end; }
 .busca-salva-q { font-size: 13px; color: var(--rci-text-muted); overflow-wrap: anywhere; }
+
+/* Pastas de trabalho */
+.result-footer .acoes .btn-pasta { font-size: 13px; margin-left: 12px; }
+.lista-pastas-dialogo { max-height: 45vh; overflow-y: auto; margin: 0 -6px 8px -6px; }
+.item-pasta { display: flex; align-items: center; gap: 10px; padding: 7px 10px; margin: 0 2px; border-radius: 8px; cursor: pointer; font-size: 14px; }
+.item-pasta:hover { background: var(--rci-bg-soft); }
+.item-pasta .hint { margin: 0 0 0 auto; }
+.nova-pasta-linha { display: flex; gap: 8px; }
+.nova-pasta-linha input { flex: 1; padding: 7px 10px; border: 1px solid var(--rci-border); border-radius: 8px; font: inherit; font-size: 13.5px; }
+.aviso-pasta { min-height: 18px; margin: 8px 0 0 0; font-size: 13px; color: var(--rci-ok-text); }
+.aviso-pasta.erro { color: var(--rci-error-text); }
+.grade-pastas { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin: 8px 0 24px 0; }
+.card-pasta { display: block; padding: 14px 16px; border: 1px solid var(--rci-border); border-radius: 10px; text-decoration: none; color: var(--rci-ink); }
+.card-pasta:hover { border-color: var(--rci-blue); }
+.card-pasta strong { color: var(--rci-navy); display: block; margin-bottom: 2px; overflow-wrap: anywhere; }
+.card-pasta .hint { margin: 0; }
+.form-nova-pasta { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 10px 0 18px 0; }
+.form-nova-pasta input[type="text"] { flex: 1 1 240px; padding: 9px 12px; border: 1px solid var(--rci-border); border-radius: 8px; font: inherit; font-size: 14px; }
+.item-sumiu { color: var(--rci-text-muted); }
+.nota-item { margin-top: 4px; font-size: 13px; color: var(--rci-ink); }
+.form-nota { display: flex; gap: 6px; margin-top: 6px; }
+.form-nota input { flex: 1; padding: 5px 8px; border: 1px solid var(--rci-border); border-radius: 6px; font: inherit; font-size: 13px; }

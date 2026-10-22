@@ -14,6 +14,7 @@
       <div class="preview-actions">
         <a href="/busca" class="voltar">&larr; Voltar à busca</a>
         {% if eh_admin %}<a href="/admin/destaques/novo?indice={{ indice|urlencode }}&doc={{ doc_id|urlencode }}" class="voltar" title="Fixar este documento no topo da busca para algumas palavras-chave">Destacar na busca</a>{% endif %}
+        <button type="button" class="link-botao btn-pasta voltar" data-indice="{{ indice }}" data-doc="{{ doc_id }}" data-titulo="{{ nome }}">Salvar na pasta</button>
         <a href="/download/{{ indice }}/{{ doc_id }}" class="download-btn">Baixar original ↓</a>
       </div>
     </div>
@@ -23,6 +24,8 @@
         <iframe src="/arquivo/{{ indice }}/{{ doc_id }}" title="{{ nome }}"></iframe>
       </div>
     {% endif %}
+
+    {% include '_salvar_pasta.html' %}
 
     <details class="preview-texto" {{ "" if pode_embutir else "open" }}>
       <summary>Texto extraído do documento</summary>

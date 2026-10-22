@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}{{ pasta.nome }} — Pastas — RCI Search{% endblock %}
+{% block content %}
+<div class="page is-results">
+  {% set ativo = 'pastas' %}
+  {% include '_topbar.html' %}
+
+  <main class="tabela-area">
+    <p class="hint"><a href="/pastas">← Pastas</a></p>
+    <h1>{{ pasta.nome }}</h1>
+    <p class="hint">
+      {{ 'Pública' if pasta.publica else 'Privada' }} · {{ pasta.itens }} documento(s){% if pasta.dono %} · de {{ pasta.dono }}{% endif %}
+      {% if pasta.descricao %}<br>{{ pasta.descricao }}{% endif %}
+    </p>
+
+    {% if erro %}<div class="alert alert-error">{{ erro }}</div>{% endif %}
+    {% if sucesso %}<div class="alert alert-ok">{{ sucesso }}</div>{% endif %}
+
+    {% if itens %}
+      <table class="tabela">
+        <thead><tr><th>Documento</th><th>Índice</th><th>Guardado em</th>{% if editavel %}<th></th>{% endif %}</tr></thead>
+        <tbody>
+          {% for i in itens %}
+            <tr>
+              <td>
+                {% if i.sumiu %}
+                  <span class="item-sumiu"><strong>{{ i.titulo or i.nome }}</strong> · não está mais no índice</span>
+                {% else %}
+                  <a href="/preview/{{ i.indice }}/{{ i.doc_id }}"><strong>{{ i.titulo or i.nome }}</strong></a>
+                {% endif %}
+                <div class="hint">{{ i.nome }} · {{ i.tipo }}</div>
+                {% if editavel %}
+                  <form method="post" action="/pastas/{{ pasta.id }}/nota" class="form-nota">
+                    <input type="hidden" name="indice" value="{{ i.indice }}"><input type="hidden" name="doc" value="{{ i.doc_id }}">
+                    <input type="text" name="nota" value="{{ i.nota or '' }}" maxlength="{{ limite_nota }}" placeholder="Nota (opcional)">
+                    <button type="submit" class="btn-sec">Salvar nota</button>
+                  </form>
+                {% elif i.nota %}
+                  <div class="nota-item">{{ i.nota }}</div>
+                {% endif %}
+              </td>
+              <td><span class="tag-indice">{{ i.indice_nome }}</span></td>
+              <td class="nowrap">{{ i.adicionado_local.strftime('%d/%m/%Y') }}{% if i.adicionado_por %}<br><span class="hint">{{ i.adicionado_por }}</span>{% endif %}</td>
+              {% if editavel %}
+                <td class="nowrap">
+                  {% if not i.sumiu %}<a href="/download/{{ i.indice }}/{{ i.doc_id }}">Baixar</a> · {% endif %}
+                  <form method="post" action="/pastas/{{ pasta.id }}/remover" class="inline">
+                    <input type="hidden" name="indice" value="{{ i.indice }}"><input type="hidden" name="doc" value="{{ i.doc_id }}">
+                    <button type="submit" class="link-botao">Tirar</button>
+                  </form>
+                </td>
+              {% endif %}
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="empty">Pasta vazia. Use <strong>Salvar na pasta</strong> nos resultados da <a href="/busca">busca</a> ou no preview de um documento.</div>
+    {% endif %}
+
+    {% if editavel %}
+      <h2>Configurar pasta</h2>
+      <form method="post" class="form-projeto">
+        <label class="campo"><span>Nome</span>
+          <input type="text" name="nome" value="{{ pasta.nome }}" maxlength="{{ limite_nome }}" required></label>
+        <label class="campo"><span>Descrição <span class="hint">(opcional)</span></span>
+          <textarea name="descricao" rows="2" maxlength="{{ limite_descricao }}">{{ pasta.descricao or '' }}</textarea></label>
+        <label class="faceta-item campo-check"><input type="checkbox" name="publica" value="1" {{ 'checked' if pasta.publica }}> <span>Pública <span class="hint">(todo mundo vê; só você mexe)</span></span></label>
+        <div class="acoes-form"><button type="submit" class="btn-prim">Salvar</button></div>
+      </form>
+      <form method="post" action="/pastas/{{ pasta.id }}/apagar" class="apagar-termo">
+        <button type="submit" class="btn-perigo" onclick="return confirm('Apagar esta pasta? Os documentos continuam no índice.')">Apagar pasta</button>
+      </form>
+    {% endif %}
+  </main>
+</div>
+{% endblock %}
