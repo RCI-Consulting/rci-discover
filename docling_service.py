@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 
 import requests
 import config
+import extracao
 
 from opensearch_client import OpenSearchClient
 from utils import extensao, extrair_titulo
@@ -34,10 +35,14 @@ def extrair_texto_docling(caminho_arquivo: str) -> str:
         content_type = "application/octet-stream"
 
     url = f"{BASE_DOCLING_URL}/v1alpha/convert/file"
+    # OCR: lê o texto de imagens e de PDFs escaneados. Só entra nas partes da
+    # página sem texto digital (force_ocr=false), então PDFs normais quase não
+    # ficam mais lentos. Idiomas do EasyOCR em DOCLING_OCR_IDIOMAS (ex.: "pt,en").
     params = {
-        "do_ocr": "false",
-        "force_ocr": "false",
+        "do_ocr": "true" if config.DOCLING_OCR else "false",
+        "force_ocr": "true" if config.DOCLING_OCR_FORCAR else "false",
         "ocr_engine": "easyocr",
+        "ocr_lang": config.DOCLING_OCR_IDIOMAS,
     }
 
     print(f"[Docling] Enviando '{nome_arquivo}' para {url} (timeout {config.DOCLING_TIMEOUT}s)...")
@@ -116,7 +121,12 @@ def processar_e_indexar_pdf(caminho_arquivo, doc_id=None, nome_indice=None):
         raise ValueError("Caminho do arquivo não foi fornecido.")
 
     nome_indice = nome_indice or config.INDEX_NAME
-    texto_extraido = extrair_texto_docling(caminho_arquivo)
+    # TXT, DOCX e ODT saem direto (milissegundos); o resto, ou se falhar, vai para o Docling
+    texto_extraido = extracao.extrair(caminho_arquivo) if config.EXTRACAO_RAPIDA else None
+    if texto_extraido is None:
+        texto_extraido = extrair_texto_docling(caminho_arquivo)
+    else:
+        print(f"[Extração rápida] {os.path.basename(caminho_arquivo)}: {len(texto_extraido)} caracteres, sem Docling")
     cliente = OpenSearchClient()
 
     # Garante que o conteúdo não vá como Base64 nem ultrapasse o limite

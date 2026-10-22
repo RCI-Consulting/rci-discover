@@ -519,3 +519,62 @@ A primeira passada numa pasta grande manda **tudo** para o Docling, que leva min
 - **Endereços:** nenhum mudou.
 - **Implementação:** o menu e os grupos ficam num lugar só (`templates/_admin_abas.html`). O layout em duas colunas usa `.page:has(> .menu-admin)` no CSS, então as telas não precisaram mudar.
 - Alterados: `templates/_admin_abas.html`, `static/style.css` (sai o CSS das abas antigas).
+
+22/10/2026 (5)
+
+# Busca em português (radical e acentos), OCR e extração rápida
+## Analisador português
+- **O que muda:** nome, título e conteúdo ganharam um subcampo `.pt`, com o analisador `rci_pt`.
+  - Ele tira as stopwords ("de", "a", "não"…), tira os **acentos** e reduz a palavra ao **radical** (*light_portuguese*), como o stemming por idioma do Watson Explorer.
+  - Com isso, "contratos" acha "contrato" e "acao" acha "ação".
+- **Pesos:** a palavra exata continua pesando mais. A consulta usa os dois campos (`conteudo` 1× e `conteudo.pt` 0,8×; título e nome idem) com `tie_breaker` 0,3.
+- **Destaque no resumo:** quando só a variação casou, o trecho vem do `.pt`, então "contratos" aparece destacado numa busca por "contrato".
+- **Índices novos** já nascem com o analisador.
+- **Índices existentes:** Administração → Acervo → Índices, coluna **Português** → **Ativar**. O botão:
+  1. registra o analisador. O OpenSearch exige **fechar o índice** para isso, e ele fica fora por um ou dois segundos;
+  2. acrescenta os subcampos sem mexer no que existe;
+  3. reprocessa os documentos **a partir do texto já salvo**, sem Docling, em segundo plano (`update_by_query`). Enquanto isso a coluna mostra "Atualizando…" e a busca funciona normal.
+
+## OCR
+- **Ligado por padrão:** o Docling agora roda com `do_ocr=true`. Imagens e PDFs escaneados, que antes entravam **sem texto**, passam a ser pesquisáveis.
+- **Só onde precisa:** o OCR entra nas partes da página sem texto digital (`force_ocr=false`), então PDFs normais quase não ficam mais lentos.
+- **Documentos já indexados sem texto:** botão **Refazer sem texto** em Índices. Ele manda de novo para o Docling os documentos com menos de 50 caracteres, usando o arquivo original.
+- **Variáveis:**
+  - `DOCLING_OCR` (padrão `1`);
+  - `DOCLING_OCR_IDIOMAS` (padrão `pt,en`);
+  - `DOCLING_OCR_FORCAR=1` refaz o OCR até em páginas com texto. É bem mais lento e só vale para PDFs com camada de texto ruim.
+
+## Extração rápida (sem Docling)
+- **Formatos:** **TXT, DOCX e ODT** são lidos direto pelo app (`extracao.py`), em milissegundos em vez de minutos. Isso importa nas pastas grandes do crawler.
+- **Formato do resultado:** Markdown, com títulos como `#` e tabelas como `|`, igual ao do Docling. Preview, título e busca não mudam.
+- **TXT:** aceita UTF-8 e Windows-1252.
+- **Quando volta para o Docling:** se o arquivo estiver corrompido ou tiver algo inesperado, como um XML com DTD (recusado por segurança) ou XML descompactado acima de 100 MB.
+- **Desligar:** `EXTRACAO_RAPIDA=0` manda tudo para o Docling, como antes.
+- **Outros formatos:** PDF, imagens, DOC e RTF continuam no Docling.
+
+## Como foi testado
+- **Extração:** DOCX (título por estilo, quebra de linha, tabela com `|` no texto) e ODT (título, espaços, tabulação, lista, tabela) gerados no teste; TXT em UTF-8 com BOM e em Windows-1252; recusas (zip corrompido, XML com DTD, formato sem extração rápida).
+- **Indexação:**
+  - DOCX não chama o Docling e o título sai do Markdown;
+  - PDF chama o Docling com `do_ocr=true` e `ocr_lang=[pt, en]`;
+  - com `EXTRACAO_RAPIDA=0`, DOCX volta para o Docling.
+- **Ativar português** (cliente OpenSearch simulado):
+  - sequência fechar → configurar → abrir → mapear → `update_by_query`;
+  - mantém o `ignore_above` existente;
+  - não fecha o índice se o analisador já existe;
+  - lista os índices em atualização.
+- **Busca:** campos `.pt` na consulta e destaque vindo do `.pt`.
+- **Telas:** colunas Português e Refazer sem texto. As suítes anteriores continuam passando.
+
+**Não testado contra o OpenSearch nem o Docling reais.** Conferir no dev:
+- **Analisador**, no Dev Tools, depois de ativar:
+  `POST rci-<índice>/_analyze {"analyzer": "rci_pt", "text": "Contratos de prestação de serviços"}`
+  deve devolver algo como `contrat`, `prestaca`, `servic`.
+- **Busca:** buscar "contrato" e ver resultados com "contratos"; buscar "acao" e ver "ação".
+- **OCR:** subir uma imagem ou um PDF escaneado e ver o texto no preview.
+  - O `docling-serve` precisa baixar os modelos do EasyOCR para `pt` na primeira vez, o que exige internet no container. Se não houver, o erro aparece na Fila.
+  - Se o Docling recusar o parâmetro `ocr_lang`, mande a mensagem.
+
+## Arquivos
+- Novo: `extracao.py`.
+- Alterados: `indices.py` (`ANALISE_PT`, subcampos `.pt` no mapeamento), `opensearch_client.py` (`portugues_ativo`, `ativar_portugues`, `indices_em_atualizacao`, `listar_sem_texto`), `relevancia.py`, `docling_service.py`, `config.py`, `web_app.py`, `templates/indices.html`.

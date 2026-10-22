@@ -30,14 +30,40 @@ CAMPOS_RELEVANCIA = {
 # Campos acrescentados depois da criação dos primeiros índices.
 CAMPOS_NOVOS = {**CAMPOS_FACETAS, **CAMPOS_RELEVANCIA}
 
+# Português: o subcampo `.pt` de nome, título e conteúdo guarda as palavras
+# sem acento e reduzidas ao radical ("contratos", "contratação" e
+# "contrato" viram a mesma coisa; "acao" acha "ação"), como o stemming por
+# idioma do Watson Explorer. O campo original continua igual (palavra exata),
+# então a busca usa os dois: a palavra exata pesa mais que a variação.
+ANALISADOR_PT = "rci_pt"
+ANALISE_PT = {
+    "analysis": {
+        "filter": {
+            "rci_pt_stop": {"type": "stop", "stopwords": "_portuguese_"},
+            "rci_pt_radical": {"type": "stemmer", "language": "light_portuguese"},
+        },
+        "analyzer": {
+            ANALISADOR_PT: {
+                "type": "custom",
+                "tokenizer": "standard",
+                # stopwords antes de tirar os acentos (a lista tem "é", "à", "não"...)
+                "filter": ["lowercase", "rci_pt_stop", "asciifolding", "rci_pt_radical"],
+            }
+        },
+    }
+}
+SUBCAMPO_PT = {"type": "text", "analyzer": ANALISADOR_PT}
+CAMPOS_COM_PT = ("nome", "titulo", "conteudo")
+
 MAPEAMENTO = {
-    "settings": {"index": {"number_of_shards": 1}},
+    "settings": {"index": {"number_of_shards": 1, **ANALISE_PT}},
     "mappings": {
         "properties": {
-            "nome": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 512}}},
-            "caminho": {"type": "keyword"},
-            "conteudo": {"type": "text"},
             **CAMPOS_NOVOS,
+            "nome": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 512}, "pt": SUBCAMPO_PT}},
+            "caminho": {"type": "keyword"},
+            "conteudo": {"type": "text", "fields": {"pt": SUBCAMPO_PT}},
+            "titulo": {"type": "text", "fields": {"pt": SUBCAMPO_PT}},
         }
     },
 }

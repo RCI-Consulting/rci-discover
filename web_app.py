@@ -197,10 +197,9 @@ def _pesquisar(q, alvo, projeto=None):
                 "query": temas.restringir(relevancia.montar_consulta(q, expansoes), temas_ativos),
                 "highlight": {
                     "fields": {
-                        "conteudo": {
-                            "fragment_size": 220,
-                            "number_of_fragments": 1,
-                        }
+                        # palavra exata; se só a variação em português casou, o destaque vem do .pt
+                        "conteudo": {"fragment_size": 220, "number_of_fragments": 1},
+                        "conteudo.pt": {"fragment_size": 220, "number_of_fragments": 1},
                     }
                 },
                 "_source": ["nome", "titulo", "caminho", "conteudo"],
@@ -237,7 +236,8 @@ def _pesquisar(q, alvo, projeto=None):
                 fonte = hit["_source"]
 
                 # Destaque do OpenSearch; sem ele, os primeiros 220 caracteres (já escapado)
-                highlight = hit.get("highlight", {}).get("conteudo", [None])[0]
+                destaques_hit = hit.get("highlight", {})
+                highlight = (destaques_hit.get("conteudo") or destaques_hit.get("conteudo.pt") or [None])[0]
                 trecho = montar_trecho(highlight, fonte.get("conteudo", ""))
 
                 nome = fonte.get("nome", "(sem nome)")
@@ -474,6 +474,19 @@ def indices_pagina():
         sucesso = f'Índice "{request.args["criado"]}" criado.'
     if request.args.get("apagado"):
         sucesso = f'Índice "{request.args["apagado"]}" apagado.'
+    if request.args.get("sem_texto"):
+        n = request.args.get("n", 0, type=int)
+        sem_arquivo = request.args.get("sem_arquivo", 0, type=int)
+        ja_na_fila = request.args.get("ja_na_fila", 0, type=int)
+        sucesso = f'Índice "{request.args["sem_texto"]}": {n} documento(s) sem texto enviados para a fila (Docling com OCR)'
+        if ja_na_fila:
+            sucesso += f", {ja_na_fila} já estavam na fila"
+        if sem_arquivo:
+            sucesso += f", {sem_arquivo} sem o arquivo original no servidor"
+        sucesso += "." if n or ja_na_fila or sem_arquivo else " Nenhum documento sem texto encontrado."
+    if request.args.get("portugues"):
+        sucesso = (f'Português ativado em "{request.args["portugues"]}". Os documentos estão sendo reprocessados em segundo plano '
+                   "(a partir do texto já salvo, sem Docling); a busca funciona normalmente enquanto isso.")
     if request.args.get("reindexado"):
         n = request.args.get("n", 0, type=int)
         sem_arquivo = request.args.get("sem_arquivo", 0, type=int)
@@ -498,8 +511,14 @@ def indices_pagina():
         pendentes = cliente.contar_desatualizados(indices.padrao_busca()) if lista else {}
     except Exception:
         pendentes = {}
+    em_atualizacao = cliente.indices_em_atualizacao() if lista else set()
     for i in lista:
         i["pendentes"] = pendentes.get(i["nome"], 0)
+        try:
+            i["portugues"] = cliente.portugues_ativo(i["nome"])
+        except Exception:
+            i["portugues"] = None
+        i["atualizando"] = i["nome"] in em_atualizacao
 
     return render_template(
         "indices.html",
@@ -805,6 +824,48 @@ def indice_reindexar(nome):
         f"/admin/indices?reindexado={quote(indices.nome_exibicao(nome))}"
         f"&n={enfileirados}&sem_arquivo={sem_arquivo}&ja_na_fila={ja_na_fila}&titulos={titulos}"
     )
+
+
+@app.route("/admin/indices/<nome>/sem-texto", methods=["POST"])
+def indice_sem_texto(nome):
+    """Recoloca na fila os documentos que entraram sem texto (PDF escaneado,
+    imagem), para passarem de novo pelo Docling, agora com OCR."""
+    if not indices.eh_gerenciado(nome):
+        abort(404, "Índice não encontrado.")
+    enfileirados = sem_arquivo = ja_na_fila = 0
+    try:
+        for doc_id, nome_arquivo, caminho in cliente.listar_sem_texto(nome):
+            if not caminho or not os.path.isfile(caminho):
+                sem_arquivo += 1
+            elif jobs.job_ativo(nome, doc_id):
+                ja_na_fila += 1
+            else:
+                jobs.enfileirar(nome, nome_arquivo or os.path.basename(caminho), caminho, doc_id)
+                enfileirados += 1
+    except Exception as e:
+        return render_template(
+            "erro.html", titulo="Não consegui reprocessar",
+            mensagem=f"Erro no índice \"{indices.nome_exibicao(nome)}\": {e}",
+        ), 500
+    return redirect(
+        f"/admin/indices?sem_texto={quote(indices.nome_exibicao(nome))}"
+        f"&n={enfileirados}&sem_arquivo={sem_arquivo}&ja_na_fila={ja_na_fila}"
+    )
+
+
+@app.route("/admin/indices/<nome>/portugues", methods=["POST"])
+def indice_portugues(nome):
+    """Liga o analisador português num índice criado antes dele."""
+    if not indices.eh_gerenciado(nome):
+        abort(404, "Índice não encontrado.")
+    try:
+        cliente.ativar_portugues(nome)
+    except Exception as e:
+        return render_template(
+            "erro.html", titulo="Não consegui ativar o português",
+            mensagem=f"Erro no índice \"{indices.nome_exibicao(nome)}\": {e}",
+        ), 500
+    return redirect(f"/admin/indices?portugues={quote(indices.nome_exibicao(nome))}")
 
 
 @app.route("/admin/indices/<nome>/apagar", methods=["GET", "POST"])
