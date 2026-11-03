@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ 'Editar relatório' if relatorio else 'Novo relatório' }} — RCI Search{% endblock %}
+{% block title %}{{ 'Editar relatório' if relatorio else 'Novo relatório' }} — {{ app_nome }}{% endblock %}
 {% block content %}
 <div class="page is-results">
   {% set ativo = 'admin' %}{% set aba = 'relatorios' %}
@@ -30,7 +30,7 @@
           </select></label>
       </div>
       <label class="campo"><span>Para <span class="hint">(e-mails separados por vírgula)</span></span>
-        <textarea name="destinatarios" rows="2" required placeholder="gestor@rciit.com, ti@rciit.com">{{ dados.destinatarios }}</textarea></label>
+        <textarea name="destinatarios" rows="2" required placeholder="gestor@empresa.com.br, ti@empresa.com.br">{{ dados.destinatarios }}</textarea></label>
       {% if relatorio %}
         <label class="faceta-item campo-check"><input type="checkbox" name="ativo" value="1" {{ 'checked' if dados.ativo }}> <span>Ativo <span class="hint">(desmarque para pausar)</span></span></label>
       {% endif %}

@@ -20,6 +20,7 @@ import time
 from datetime import datetime, timezone
 from html import escape
 
+import config
 import configuracoes
 import email_envio
 import fontes
@@ -123,10 +124,10 @@ def verificar_alertas(conf=None, forcar=False):
     links = (f"<p><a href='{escape(url)}/admin/fontes'>Fontes</a> · <a href='{escape(url)}/admin/fila'>Fila</a> · "
              f"<a href='{escape(url)}/admin/indices'>Índices</a></p>" if url else "")
     html = (f"<div style='font-family:Arial,Helvetica,sans-serif;color:#1a2333;max-width:640px'>"
-            f"<h2 style='color:#03143b'>Alertas do RCISearch</h2>{''.join(partes)}{links}"
+            f"<h2 style='color:#03143b'>Alertas do {escape(config.APP_NOME)}</h2>{''.join(partes)}{links}"
             f"<p style='color:#5f6b7a;font-size:12px'>Cada problema é avisado uma vez só. "
             f"Para mudar quem recebe, use Administração → E-mail.</p></div>")
-    email_envio.enviar(destinatarios, f"RCISearch — {len(novos)} alerta(s) novo(s)", html, origem="alertas", conf=conf)
+    email_envio.enviar(destinatarios, f"{config.APP_NOME} — {len(novos)} alerta(s) novo(s)", html, origem="alertas", conf=conf)
 
     with conectar() as con, con.cursor() as cur:
         cur.executemany(

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}RCI Search{% endblock %}
+{% block title %}{{ app_nome }}{% endblock %}
 {% block head_extra %}<script src="{{ url_for('static', filename='autocomplete.js') }}" defer></script>{% endblock %}
 {% block content %}
 <div class="page {{ 'is-results' if q else 'is-home' }}">
@@ -8,7 +8,7 @@
 
   {% if not q %}<div class="home-hero">
     <a href="/" class="brand">
-      <span class="brand-rci">RCI</span><span class="brand-search">Search</span>
+      {% include '_marca.html' %}
     </a>
     {% if projeto %}
       <div class="projeto-titulo">
@@ -169,7 +169,7 @@
             {% for f, rotulo in frequencias_alerta %}<option value="{{ f }}">{{ rotulo }}</option>{% endfor %}
           </select></label>
         <label class="campo" id="campo-alerta-email" hidden><span>E-mail</span>
-          <input type="text" name="alerta_email" placeholder="voce@rciit.com"></label>
+          <input type="text" name="alerta_email" placeholder="voce@empresa.com.br"></label>
         <p class="hint">Guarda também os filtros, temas e a ordem desta tela.</p>
         <div class="acoes-form"><button type="submit" class="btn-prim">Salvar</button></div>
       </form>

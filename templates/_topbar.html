@@ -1,6 +1,6 @@
 <header class="topbar">
-  <a href="/" class="home-btn" title="Página inicial" aria-label="RCI Search — página inicial">
-    <img src="{{ url_for('static', filename='img/rci-logo-azul.png') }}" alt="RCI" width="72" height="30">
+  <a href="/" class="home-btn" title="Página inicial" aria-label="{{ app_nome }} — página inicial">
+    <img src="{{ url_for('static', filename=app_logo) }}" alt="{{ app_logo_alt }}" height="30">
   </a>
   <nav class="topnav">
     <a href="/busca"{% if ativo == 'buscar' %} class="active"{% endif %}>Buscar</a>

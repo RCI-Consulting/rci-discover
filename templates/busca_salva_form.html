@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Editar busca salva — RCI Search{% endblock %}
+{% block title %}Editar busca salva — {{ app_nome }}{% endblock %}
 {% block content %}
 <div class="page is-results">
   {% set ativo = 'buscas_salvas' %}
@@ -20,7 +20,7 @@
           {% for f, rotulo in frequencias %}<option value="{{ f }}" {{ 'selected' if f == dados.frequencia }}>{{ rotulo }}</option>{% endfor %}
         </select></label>
       <label class="campo"><span>E-mail <span class="hint">(obrigatório com alerta)</span></span>
-        <input type="text" name="alerta_email" value="{{ dados.alerta_email }}" placeholder="voce@rciit.com"></label>
+        <input type="text" name="alerta_email" value="{{ dados.alerta_email }}" placeholder="voce@empresa.com.br"></label>
       <p class="hint">Os alertas saem às 7h (Brasília) e trazem os documentos indexados ou atualizados desde o último aviso. Sem novidade, não chega e-mail.</p>
       <div class="acoes-form">
         <button type="submit" class="btn-prim">Salvar</button>

@@ -1,12 +1,12 @@
 {% extends "base.html" %}
-{% block title %}RCI Search{% endblock %}
+{% block title %}{{ app_nome }}{% endblock %}
 {% block content %}
 <div class="page is-results">
   {% set ativo = 'home' %}
   {% include '_topbar.html' %}
 
   <main class="boas-vindas">
-    <h1>Bem-vindo ao <span class="brand-rci">RCI</span><span class="brand-search">Search</span></h1>
+    <h1>Bem-vindo ao {% include '_marca.html' %}</h1>
     <p class="boas-vindas-sub">Comece a explorar</p>
 
     <div class="home-cards">

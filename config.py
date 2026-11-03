@@ -8,6 +8,15 @@ load_dotenv()
 # O debugger permite executar código no servidor, então fica DESLIGADO por
 # padrão e só deve ser ligado na máquina de desenvolvimento: FLASK_DEBUG=1.
 MODO_DEBUG = os.getenv("FLASK_DEBUG", "0") == "1"
+
+# Marca do produto: nome exibido nas telas, títulos e e-mails. Trocar o nome
+# é só mudar estas variáveis no .env / Dokploy. APP_NOME_DESTAQUE é o final do
+# nome pintado em azul (ex.: "Explor" + "IA"); vazio = nome todo numa cor só.
+APP_NOME = os.getenv("APP_NOME", "ExplorIA")
+APP_NOME_DESTAQUE = os.getenv("APP_NOME_DESTAQUE", "IA")
+# Logo do botão "home" no topo: caminho dentro de static/ e texto alternativo.
+APP_LOGO = os.getenv("APP_LOGO", "img/rci-logo-azul.png")
+APP_LOGO_ALT = os.getenv("APP_LOGO_ALT", "RCI")
  
 # Conexão OpenSearch
 OPENSEARCH_HOST = os.getenv("OPENSEARCH_HOST", "opensearch")

@@ -63,7 +63,7 @@ def montar_relatorio_auditoria(dias, url_base=""):
         )
         return f"<h3>{titulo}</h3><table style='border-collapse:collapse;font-size:14px'>{corpo}</table>"
 
-    link = (f"<p><a href='{escape(url_base.rstrip('/'))}/admin/auditoria?dias={dias}'>Abrir a auditoria no RCISearch</a></p>"
+    link = (f"<p><a href='{escape(url_base.rstrip('/'))}/admin/auditoria?dias={dias}'>Abrir a auditoria no {escape(config.APP_NOME)}</a></p>"
             if url_base else "")
     aviso = (f"<p style='color:#8a1f1f'>O CSV anexo traz só as {len(linhas)} buscas mais recentes.</p>" if cortou else "")
     html = f"""
@@ -80,7 +80,7 @@ def montar_relatorio_auditoria(dias, url_base=""):
   {aviso}{link}
 </div>"""
     anexo = ("auditoria-buscas.csv", csv_auditoria(linhas), "text/csv")
-    return f"RCISearch — relatório de buscas ({periodo})", html, [anexo]
+    return f"{config.APP_NOME} — relatório de buscas ({periodo})", html, [anexo]
 
 
 # ---- Relatórios agendados (enviados por e-mail pelo notificacoes.py) --------

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ 'Editar projeto' if projeto else 'Novo projeto' }} — RCI Search{% endblock %}
+{% block title %}{{ 'Editar projeto' if projeto else 'Novo projeto' }} — {{ app_nome }}{% endblock %}
 {% block content %}
 <div class="page is-results">
   {% set ativo = 'admin' %}{% set aba = 'projetos' %}

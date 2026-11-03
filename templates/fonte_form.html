@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ 'Editar fonte' if fonte else 'Nova fonte' }} — RCI Search{% endblock %}
+{% block title %}{{ 'Editar fonte' if fonte else 'Nova fonte' }} — {{ app_nome }}{% endblock %}
 {% block content %}
 <div class="page is-results">
   {% set ativo = 'admin' %}{% set aba = 'fontes' %}

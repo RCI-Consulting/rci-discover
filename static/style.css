@@ -1,4 +1,4 @@
-/* RCI Search — paleta baseada em rciit.com (azul #004FFE, navy #03143B) */
+/* Paleta baseada em rciit.com (azul #004FFE, navy #03143B). O nome do produto vem de config.APP_NOME. */
 
 :root {
   --rci-blue: #004ffe;
@@ -56,8 +56,9 @@ a { color: var(--rci-blue); }
   line-height: 1;
 }
 
-.brand-rci { color: var(--rci-blue); }
-.brand-search { color: var(--rci-navy); font-weight: 400; }
+/* nome do produto: a parte final (APP_NOME_DESTAQUE, ex. "IA") fica em azul */
+.brand-nome { color: var(--rci-navy); }
+.brand-destaque { color: var(--rci-blue); }
 
 .topnav {
   display: flex;
@@ -146,9 +147,9 @@ a { color: var(--rci-blue); }
 /* Home (sem query): tudo centralizado, como a home do Google */
 .page.is-home .topbar { position: absolute; top: 0; left: 0; right: 0; }
 
-/* Botão home (logo RCI): sempre no canto esquerdo, mesmo tamanho em todas as páginas */
+/* Botão home (logo, config.APP_LOGO): sempre no canto esquerdo, mesmo tamanho em todas as páginas */
 .home-btn { display: flex; align-items: center; flex: none; border-radius: 6px; }
-.home-btn img { display: block; width: 72px; height: 30px; }
+.home-btn img { display: block; width: auto; height: 30px; max-width: 160px; }  /* qualquer logo: altura fixa, largura proporcional */
 .home-btn:focus-visible { outline: 2px solid var(--rci-blue); outline-offset: 4px; }
 
 .home-hero {
@@ -985,7 +986,6 @@ a.btn-prim:hover { background: var(--rci-blue-dark); }
   font-weight: 700;
   color: var(--rci-navy);
 }
-.boas-vindas h1 .brand-search { font-weight: 400; }
 .boas-vindas-sub { margin: 0; font-size: 17px; color: var(--rci-text-muted); }
 
 .home-cards {

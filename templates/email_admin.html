@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}E-mail — Administração — RCI Search{% endblock %}
+{% block title %}E-mail — Administração — {{ app_nome }}{% endblock %}
 {% block content %}
 <div class="page is-results">
   {% set ativo = 'admin' %}{% set aba = 'email' %}
@@ -39,9 +39,9 @@
           </p>
         </div>
         <label class="campo"><span>Remetente</span>
-          <input type="text" name="smtp_remetente" value="{{ conf.smtp_remetente }}" placeholder="rcisearch@rciit.com"></label>
-        <label class="campo"><span>Endereço do RCISearch <span class="hint">(para os links dentro dos e-mails)</span></span>
-          <input type="text" name="url_base" value="{{ conf.url_base }}" placeholder="https://rcisearch.rciit.com"></label>
+          <input type="text" name="smtp_remetente" value="{{ conf.smtp_remetente }}" placeholder="busca@empresa.com.br"></label>
+        <label class="campo"><span>Endereço do {{ app_nome }} <span class="hint">(para os links dentro dos e-mails)</span></span>
+          <input type="text" name="url_base" value="{{ conf.url_base }}" placeholder="https://busca.empresa.com.br"></label>
         <div class="acoes-form"><button type="submit" class="btn-prim">Salvar servidor</button></div>
       </form>
 
@@ -59,7 +59,7 @@
       <form method="post" class="form-projeto">
         <label class="faceta-item campo-check"><input type="checkbox" name="alertas_ativos" value="1" {{ 'checked' if conf.alertas_ativos == '1' }}> <span>Enviar alertas</span></label>
         <label class="campo"><span>Quem recebe <span class="hint">(e-mails separados por vírgula)</span></span>
-          <input type="text" name="alertas_destinatarios" value="{{ conf.alertas_destinatarios }}" placeholder="ti@rciit.com"></label>
+          <input type="text" name="alertas_destinatarios" value="{{ conf.alertas_destinatarios }}" placeholder="ti@empresa.com.br"></label>
         <fieldset class="campo">
           <legend>Avisar quando</legend>
           <label class="faceta-item campo-check"><input type="checkbox" name="alertas_fontes" value="1" {{ 'checked' if conf.alertas_fontes == '1' }}> <span>uma passada de <a href="/admin/fontes">fonte</a> terminar com erro (ex.: compartilhamento fora do ar)</span></label>

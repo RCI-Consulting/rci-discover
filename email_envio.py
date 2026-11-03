@@ -13,6 +13,7 @@ import threading
 from email.message import EmailMessage
 from email.utils import formataddr, make_msgid
 
+import config
 import configuracoes
 from db import conectar
 
@@ -99,8 +100,8 @@ def enviar(destinatarios, assunto, html, origem, anexos=(), conf=None):
 
     msg = EmailMessage()
     msg["Subject"] = assunto
-    msg["From"] = formataddr(("RCISearch", conf["smtp_remetente"]))
-    msg["To"] = formataddr(("RCISearch", conf["smtp_remetente"]))  # destinatários vão em cópia oculta
+    msg["From"] = formataddr((config.APP_NOME, conf["smtp_remetente"]))
+    msg["To"] = formataddr((config.APP_NOME, conf["smtp_remetente"]))  # destinatários vão em cópia oculta
     msg["Message-ID"] = make_msgid(domain=conf["smtp_remetente"].split("@")[-1])
     msg.set_content("Este e-mail precisa de um leitor com suporte a HTML.\n")
     msg.add_alternative(html, subtype="html")

@@ -593,3 +593,33 @@ A primeira passada numa pasta grande manda **tudo** para o Docling, que leva min
 
 ## Arquivos
 - Alterados: `config.py` (`MODO_DEBUG`), `web_app.py`, `templates/ingest.html`.
+
+03/11/2026 (3)
+
+# Nome do produto configurável (ExplorIA)
+- **Por quê:** o produto vai ser vendido com um nome comercial, sem "RCI". O nome provisório é **ExplorIA**, mas pode mudar. Por isso ele saiu do código e virou configuração.
+- **Variáveis** (`.env` / Dokploy; os padrões estão em `config.py`):
+  - `APP_NOME` (padrão `ExplorIA`): nome nos títulos das páginas, na home, na busca, no topo e nos e-mails (assunto, remetente e textos).
+  - `APP_NOME_DESTAQUE` (padrão `IA`): final do nome pintado em azul (Explor**IA**). Vazio, ou um texto que não seja o final do nome, deixa o nome todo numa cor só.
+  - `APP_LOGO` (padrão `img/rci-logo-azul.png`): logo do botão "home" no topo, caminho dentro de `static/`. A altura fica em 30 px e a largura acompanha a proporção da imagem (até 160 px).
+  - `APP_LOGO_ALT` (padrão `RCI`): texto alternativo do logo.
+- **Para trocar o nome:** mude as variáveis e reinicie o app. Não precisa mexer em template nem em código.
+- **O que não muda** (identificadores internos; trocar quebraria os dados existentes):
+  - banco MySQL `rcisearch`;
+  - prefixo de índice `rci-`;
+  - analisador `rci_pt`;
+  - travas `rcisearch_*` do MySQL;
+  - variáveis de cor `--rci-*` do CSS.
+- **Exemplos de e-mail** nos formulários trocados de `@rciit.com` para `@empresa.com.br`.
+- **Pendências de marca:**
+  - o topo ainda usa o **logo da RCI** (não há logo do produto). Quando houver, coloque o arquivo em `static/img/` e aponte `APP_LOGO`;
+  - o favicon continua o da RCI (`static/favicon.ico`, `static/img/favicon-32.png`, `static/img/apple-touch-icon.png`). Basta substituir os arquivos.
+
+## Arquivos
+- Novo: `templates/_marca.html` (nome em duas cores, usado na home e na busca).
+- Alterados:
+  - `config.py` (`APP_NOME`, `APP_NOME_DESTAQUE`, `APP_LOGO`, `APP_LOGO_ALT`);
+  - `web_app.py` (nome e logo disponíveis em todos os templates);
+  - `buscas_salvas.py`, `email_envio.py`, `relatorios.py`, `notificacoes.py` (e-mails);
+  - `static/style.css` (`.brand-nome` / `.brand-destaque` no lugar de `.brand-rci` / `.brand-search`; logo com largura proporcional);
+  - os títulos de todos os templates, `_topbar.html`, `home.html`, `index.html`, `email_admin.html`, `busca_salva_form.html`, `relatorio_form.html`.

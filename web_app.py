@@ -1,5 +1,5 @@
 """
-Frontend (Flask) do RCI Search: busca em todos os índices do OpenSearch,
+Frontend (Flask) do buscador (nome do produto em config.APP_NOME): busca em todos os índices do OpenSearch,
 upload com indexação em segundo plano (fila no MySQL) e gestão de índices.
 
 Uso:
@@ -13,6 +13,7 @@ OpenSearch (evita expor usuário/senha do cluster no front-end).
 """
 
 import os
+from html import escape as escapar_html
 from datetime import datetime, timedelta, timezone
 from urllib.parse import quote, urlencode
 
@@ -90,9 +91,20 @@ def _documento(indice, doc_id):
     return indice, cliente.get(indice, doc_id)
 
 
+# Nome e logo do produto (config.APP_*), disponíveis em todos os templates.
+_destaque = config.APP_NOME_DESTAQUE if config.APP_NOME_DESTAQUE and config.APP_NOME.endswith(config.APP_NOME_DESTAQUE) else ""
+_MARCA = {
+    "app_nome": config.APP_NOME,
+    "app_nome_inicio": config.APP_NOME[: len(config.APP_NOME) - len(_destaque)],
+    "app_nome_destaque": _destaque,
+    "app_logo": config.APP_LOGO,
+    "app_logo_alt": config.APP_LOGO_ALT,
+}
+
+
 @app.context_processor
 def contexto_comum():
-    return {"eh_admin": acesso.eh_admin()}
+    return {"eh_admin": acesso.eh_admin(), **_MARCA}
 
 
 @app.template_global()
@@ -1171,7 +1183,7 @@ def admin_email():
                     email_envio.separar_emails(remetente)
                 url_base = request.form.get("url_base", "").strip().rstrip("/")
                 if url_base and not url_base.startswith(("http://", "https://")):
-                    raise ValueError("O endereço do RCISearch deve começar com http:// ou https://.")
+                    raise ValueError(f"O endereço do {config.APP_NOME} deve começar com http:// ou https://.")
                 conf.update({
                     "smtp_host": request.form.get("smtp_host", "").strip()[:255], "smtp_porta": porta,
                     "smtp_seguranca": seguranca, "smtp_usuario": request.form.get("smtp_usuario", "").strip()[:255],
@@ -1184,8 +1196,8 @@ def admin_email():
                 if not destino:
                     raise ValueError("Informe para quem mandar o e-mail de teste.")
                 email_envio.enviar(
-                    destino, "RCISearch — e-mail de teste",
-                    "<p style='font-family:Arial,sans-serif'>Se você recebeu esta mensagem, o envio de e-mails do RCISearch está funcionando.</p>",
+                    destino, f"{config.APP_NOME} — e-mail de teste",
+                    f"<p style='font-family:Arial,sans-serif'>Se você recebeu esta mensagem, o envio de e-mails do {escapar_html(config.APP_NOME)} está funcionando.</p>",
                     origem="teste", conf=conf,
                 )
                 sucesso = f"E-mail de teste enviado para {', '.join(destino)}."

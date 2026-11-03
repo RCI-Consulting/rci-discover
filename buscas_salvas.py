@@ -18,6 +18,7 @@ from urllib.parse import parse_qsl, quote, urlencode
 
 from werkzeug.datastructures import MultiDict
 
+import config
 import dicionario
 import email_envio
 import facetas
@@ -214,7 +215,7 @@ def _html_alerta(busca, total, docs, base):
         f"<h2 style='color:#03143b;margin-bottom:4px'>{total} documento(s) novo(s) ou atualizado(s)</h2>"
         f"<p>Na sua busca salva <strong>{escape(busca['nome'])}</strong> (\"{escape(busca['q'])}\").</p>"
         f"<ul style='padding-left:18px'>{itens}</ul>{mais}"
-        f"<p><a href='{escape(link(busca, base))}'>Abrir a busca no RCISearch</a> · "
+        f"<p><a href='{escape(link(busca, base))}'>Abrir a busca no {escape(config.APP_NOME)}</a> · "
         f"<a href='{escape(base)}/buscas-salvas'>Mudar ou cancelar este alerta</a></p></div>"
     )
 
@@ -237,7 +238,7 @@ def processar_alertas(cliente, conf):
             total, docs = documentos_novos(cliente, busca, busca["desde"])
             if total:
                 email_envio.enviar(
-                    [busca["alerta_email"]], f"RCISearch — {total} novo(s) em \"{busca['nome']}\""[:300],
+                    [busca["alerta_email"]], f"{config.APP_NOME} — {total} novo(s) em \"{busca['nome']}\""[:300],
                     _html_alerta(busca, total, docs, base), origem=f"busca_salva:{busca['id']}", conf=conf,
                 )
                 status = f"Enviado ({total} documento(s))"
