@@ -45,7 +45,7 @@ import worker
 from opensearch_client import OpenSearchClient
 from utils import escapar_destaque, extensao, gerar_doc_id, montar_trecho, pode_embutir, renderizar_markdown
 
-MODO_DEBUG = True
+MODO_DEBUG = config.MODO_DEBUG  # FLASK_DEBUG=1 no .env liga; em produção fica sempre desligado
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # limite de 50 MB por envio
@@ -409,6 +409,8 @@ def ingest():
         indice_selecionado=indice_selecionado,
         # mesma lista que o servidor aceita (config.EXTENSOES_VALIDAS), para o seletor não esconder nenhum tipo
         extensoes_aceitas=",".join(sorted(config.EXTENSOES_VALIDAS)),
+        # e o texto de ajuda sai da mesma lista (antes era fixo e omitia JPG/PNG)
+        extensoes_texto=", ".join(sorted(e.lstrip(".").upper() for e in config.EXTENSOES_VALIDAS)),
     )
 
 

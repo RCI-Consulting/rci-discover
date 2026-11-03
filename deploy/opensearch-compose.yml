@@ -1,0 +1,44 @@
+# OpenSearch de nó único para o RCISearch (produção). Ver README, seção "Ambientes: dev e produção".
+# Variáveis (aba Environment do compose no Dokploy):
+#   OPENSEARCH_VERSION=3.8.0                 mesma versão nos dois serviços
+#   OPENSEARCH_HEAP=4g
+#   OPENSEARCH_INITIAL_ADMIN_PASSWORD=...
+# Antes de subir numa VM nova: sudo sysctl -w vm.max_map_count=262144 (e persistir em /etc/sysctl.d/).
+services:
+  opensearch:
+    image: opensearchproject/opensearch:${OPENSEARCH_VERSION}
+    restart: unless-stopped
+    environment:
+      - cluster.name=rcisearch
+      - node.name=opensearch
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms${OPENSEARCH_HEAP} -Xmx${OPENSEARCH_HEAP}"
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=${OPENSEARCH_INITIAL_ADMIN_PASSWORD}
+      - path.repo=/usr/share/opensearch/snapshots
+    ulimits:
+      memlock: { soft: -1, hard: -1 }
+      nofile: { soft: 65536, hard: 65536 }
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+      - opensearch-snapshots:/usr/share/opensearch/snapshots
+    networks:
+      - dokploy-network          # o app alcança em https://opensearch:9200; sem "ports" publicadas
+
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:${OPENSEARCH_VERSION}
+    restart: unless-stopped
+    environment:
+      OPENSEARCH_HOSTS: '["https://opensearch:9200"]'
+    expose:
+      - "5601"                   # acesso pelo domínio HTTPS configurado no Dokploy
+    networks:
+      - dokploy-network
+
+volumes:
+  opensearch-data:
+  opensearch-snapshots:
+
+networks:
+  dokploy-network:
+    external: true

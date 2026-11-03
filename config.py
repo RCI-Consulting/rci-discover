@@ -3,6 +3,11 @@ import os
 from dotenv import load_dotenv
  
 load_dotenv()
+
+# Modo debug do Flask (recarrega ao salvar e mostra o debugger no navegador).
+# O debugger permite executar código no servidor, então fica DESLIGADO por
+# padrão e só deve ser ligado na máquina de desenvolvimento: FLASK_DEBUG=1.
+MODO_DEBUG = os.getenv("FLASK_DEBUG", "0") == "1"
  
 # Conexão OpenSearch
 OPENSEARCH_HOST = os.getenv("OPENSEARCH_HOST", "opensearch")

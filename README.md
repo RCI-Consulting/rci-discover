@@ -578,3 +578,18 @@ A primeira passada numa pasta grande manda **tudo** para o Docling, que leva min
 ## Arquivos
 - Novo: `extracao.py`.
 - Alterados: `indices.py` (`ANALISE_PT`, subcampos `.pt` no mapeamento), `opensearch_client.py` (`portugues_ativo`, `ativar_portugues`, `indices_em_atualizacao`, `listar_sem_texto`), `relevancia.py`, `docling_service.py`, `config.py`, `web_app.py`, `templates/indices.html`.
+
+03/11/2026
+
+# Debug do Flask desligado por padrão e formatos do upload
+## Debug
+- **Problema:** `MODO_DEBUG` estava fixo em `True` em `web_app.py`, e o Dockerfile roda `python web_app.py`. Em produção o app subia com o debugger do Werkzeug ligado, e quem alcança o servidor e provoca um erro consegue executar código Python nele.
+- **Agora:** o modo debug vem da variável `FLASK_DEBUG` (`config.MODO_DEBUG`) e fica **desligado por padrão**. Para desenvolver na sua máquina, ponha `FLASK_DEBUG=1` no `.env`. **Não cadastre essa variável no Dokploy.**
+- **Workers:** a regra que evita subir os workers duas vezes com o reloader (`_deve_iniciar_workers`) continua igual. Sem debug há um processo só, e os workers sobem nele.
+
+## Texto de ajuda do upload
+- **Problema:** o seletor de arquivos já aceitava JPG/JPEG/PNG (lista do `config.EXTENSOES_VALIDAS`), mas o texto de ajuda era fixo e listava só PDF, DOCX, DOC, TXT, ODT e RTF.
+- **Agora:** o texto também é montado a partir de `config.EXTENSOES_VALIDAS`. Incluir um formato novo no config atualiza o seletor e o texto juntos.
+
+## Arquivos
+- Alterados: `config.py` (`MODO_DEBUG`), `web_app.py`, `templates/ingest.html`.
