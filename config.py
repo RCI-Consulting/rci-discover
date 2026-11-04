@@ -12,8 +12,8 @@ MODO_DEBUG = os.getenv("FLASK_DEBUG", "0") == "1"
 # Marca do produto: nome exibido nas telas, títulos e e-mails. Trocar o nome
 # é só mudar estas variáveis no .env / Dokploy. APP_NOME_DESTAQUE é o final do
 # nome pintado em azul (ex.: "Explor" + "IA"); vazio = nome todo numa cor só.
-APP_NOME = os.getenv("APP_NOME", "ExplorIA")
-APP_NOME_DESTAQUE = os.getenv("APP_NOME_DESTAQUE", "IA")
+APP_NOME = os.getenv("APP_NOME", "Discover")
+APP_NOME_DESTAQUE = os.getenv("APP_NOME_DESTAQUE", "D")
 # Logo do botão "home" no topo: caminho dentro de static/ e texto alternativo.
 APP_LOGO = os.getenv("APP_LOGO", "img/rci-logo-azul.png")
 APP_LOGO_ALT = os.getenv("APP_LOGO_ALT", "RCI")
