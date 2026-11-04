@@ -1,6 +1,4 @@
-# python-opensearch
-
-## RCI-SEARCH ##
+## RCI-DISCOVER ##
 
 # docker-desktop Windows
 - uso de um ambiente de testes OpenSearch
