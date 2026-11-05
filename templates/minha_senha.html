@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Minha senha — {{ app_nome }}{% endblock %}
+{% block content %}
+<div class="page is-results">
+  {% set ativo = '' %}
+  {% include '_topbar.html' %}
+
+  <main class="tabela-area">
+    <h1>{{ 'Crie a sua senha' if obrigatoria else 'Trocar minha senha' }}</h1>
+    {% if obrigatoria %}
+      <p class="hint">Você entrou com uma senha temporária. Escolha uma senha sua para continuar.</p>
+    {% endif %}
+
+    {% if erro %}<div class="alert alert-error" role="alert">{{ erro }}</div>{% endif %}
+    {% if sucesso %}<div class="alert alert-ok">{{ sucesso }} <a href="/">Voltar ao início</a></div>{% endif %}
+
+    <form method="post" class="form-projeto">
+      <label class="campo">
+        <span>{{ 'Senha temporária' if obrigatoria else 'Senha atual' }}</span>
+        <input type="password" name="senha_atual" autocomplete="current-password" required autofocus>
+      </label>
+      <label class="campo">
+        <span>Nova senha <span class="hint">(pelo menos {{ minimo }} caracteres, com letras e números)</span></span>
+        <input type="password" name="senha_nova" autocomplete="new-password" minlength="{{ minimo }}" required>
+      </label>
+      <label class="campo">
+        <span>Repita a nova senha</span>
+        <input type="password" name="senha_confirmacao" autocomplete="new-password" minlength="{{ minimo }}" required>
+      </label>
+      <div class="acoes-form">
+        <button type="submit" class="btn-prim">Salvar senha</button>
+        {% if not obrigatoria %}<a href="/" class="voltar-btn">Cancelar</a>{% endif %}
+      </div>
+    </form>
+  </main>
+</div>
+{% endblock %}

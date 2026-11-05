@@ -623,3 +623,83 @@ A primeira passada numa pasta grande manda **tudo** para o Docling, que leva min
   - `buscas_salvas.py`, `email_envio.py`, `relatorios.py`, `notificacoes.py` (e-mails);
   - `static/style.css` (`.brand-nome` / `.brand-destaque` no lugar de `.brand-rci` / `.brand-search`; logo com largura proporcional);
   - os títulos de todos os templates, `_topbar.html`, `home.html`, `index.html`, `email_admin.html`, `busca_salva_form.html`, `relatorio_form.html`.
+
+05/11/2026
+
+# Login, usuários locais e marca Discover
+- **Por quê:** o produto vai ser implantado em clientes (começando por Segurança Pública). Até aqui qualquer pessoa que alcançasse o servidor usava tudo, inclusive a administração.
+- **Marca:** o nome padrão passou a ser **Discover**, *The Sovereign AI Discovery Platform*. O logo é DISCOVER em caixa alta, numa fonte larga como a do logo da RCI, com o "O" virando lupa. Fica em `templates/_logo_discover.html`, desenhado em HTML/SVG, sem imagem.
+
+## Tela de login (`/login`)
+- **Layout:** à esquerda, em navy, ficam o logo, "The Sovereign AI Discovery Platform", a mensagem comercial ("Investigate unstructured data. Uncover hidden connections. Keep your intelligence sovereign.") e "uma solução RCI". À direita, o formulário em português. No celular, os dois blocos ficam um embaixo do outro.
+- **Acesso:** todas as páginas exigem login, menos `/login`, `/favicon.ico` e `/static/`. Quem não está logado vai para o login e, depois de entrar, volta para a página que tinha pedido (só caminhos do próprio site, então o login não serve de redirecionador). O `/sugestoes` responde 401 em JSON.
+- **Topo:** mostra o nome de quem está logado, o link "Minha senha" e o botão "Sair".
+
+## Usuários (`usuarios.py`, Administração → Configurações → Usuários)
+- **Quem cadastra:** só administradores. Não há auto-cadastro.
+- **Papéis:**
+  - **Administrador**: vê a administração;
+  - **Usuário**: busca, projetos, pastas e buscas salvas.
+- **Novo usuário:** informe e-mail, nome e papel. O sistema gera uma **senha temporária**, mostrada **uma vez só**, para o admin repassar. No primeiro acesso a pessoa é obrigada a criar a própria senha.
+- **Editar:** muda nome e papel, desativa o usuário (ele sai na próxima página que abrir, e o histórico fica) ou gera uma nova senha temporária (a antiga deixa de valer).
+- **Proteções:** ninguém tira o próprio acesso de administrador nem se desativa, e o sistema nunca fica sem um administrador ativo.
+- **Senhas:** no mínimo 10 caracteres, com letras e números. No banco fica só o hash (scrypt, do `werkzeug.security`), nunca a senha.
+- **Tabela `usuarios`** no MySQL, criada sozinha no primeiro uso.
+
+## Primeiro administrador
+- **Variáveis:** defina `ADMIN_EMAIL` e `ADMIN_SENHA` (e, se quiser, `ADMIN_NOME`) no Dokploy e reinicie. No primeiro acesso à tela de login, se a tabela estiver vazia, esse admin é criado e precisa trocar a senha ao entrar.
+- **Depois disso:** as variáveis não fazem mais nada. Pode apagá-las.
+- **Sem as variáveis e sem usuários:** a tela de login avisa o que fazer.
+
+## Segurança
+- **`SECRET_KEY` (obrigatória em produção):** assina o cookie da sessão. Gere com `python -c "import secrets; print(secrets.token_hex(32))"` e use um valor **diferente** em dev e em produção. Sem ela, o app gera uma chave temporária e todo mundo sai a cada reinício.
+- **Cookie da sessão** (`discover_sessao`):
+  - inacessível ao JavaScript (HttpOnly);
+  - não vai em formulários de outros sites (SameSite=Lax);
+  - só trafega por **HTTPS** (`COOKIE_SEGURO=1`, padrão). Acessando por `http://` sem domínio, a tela de login avisa: use o endereço https ou, só em teste, `COOKIE_SEGURO=0`. Em `localhost` o navegador já aceita.
+- **Duração da sessão:** `SESSAO_HORAS` (padrão 8).
+- **Formulários de outros sites:** um POST cujo cabeçalho `Origin` aponte para outro endereço é recusado com 403 (proteção contra CSRF, junto com o SameSite).
+- **Tentativas de login:** depois de 5 senhas erradas para o mesmo e-mail ou do mesmo IP, o login fica bloqueado por 15 minutos. O contador fica em memória e zera quando o app reinicia.
+- **Proxy:** o `ProxyFix` passou a ler também o `X-Forwarded-Proto` do Traefik, para o app saber que o acesso é HTTPS.
+- **Usuário desativado ou com papel trocado:** vale na hora, porque a cada página o app confere o usuário no banco. Com o MySQL fora, vale o que está na sessão.
+
+## Topo e nome padrão
+- **Nome:** `APP_NOME` passou a ter o padrão `Discover` (sem destaque).
+- **Logo do topo:** `APP_LOGO` vazio (o novo padrão) mostra o logo do Discover. Para voltar a uma imagem, aponte `APP_LOGO` para um arquivo em `static/`.
+
+## Atenção na migração
+- **Pastas privadas e buscas salvas criadas antes do login** têm dono vazio (`NULL`), então não aparecem para ninguém. As pastas públicas continuam visíveis. Para entregar esses itens a um usuário (troque o e-mail):
+  ```sql
+  UPDATE pastas SET dono = 'pessoa@empresa.com.br' WHERE dono IS NULL;
+  UPDATE buscas_salvas SET dono = 'pessoa@empresa.com.br' WHERE dono IS NULL;
+  ```
+- **Auditoria:** a coluna "usuário" passa a ser preenchida com o e-mail de quem buscou.
+
+## Variáveis novas (cadastrar no Dokploy)
+- **Obrigatórias:**
+  - `SECRET_KEY`;
+  - `ADMIN_EMAIL` e `ADMIN_SENHA` (só no primeiro deploy).
+- **Opcionais:**
+  - `ADMIN_NOME`;
+  - `SESSAO_HORAS` (8);
+  - `COOKIE_SEGURO` (1).
+
+## Como foi testado
+- **Ambiente:** cliente de teste do Flask contra um MariaDB real descartável, 34 verificações.
+- **Acesso:** sem login vai para o login; `/sugestoes` responde 401; o admin inicial é criado pelas variáveis; senha errada é recusada.
+- **Login:** `http://` fora do localhost avisa sobre HTTPS; o primeiro acesso obriga a troca de senha e bloqueia o resto até trocar; a senha fraca é recusada; depois do login volta para a página pedida (e `//site-externo` é ignorado).
+- **Usuários:** cadastro com senha temporária; e-mail duplicado recusado; o admin não se rebaixa; o usuário comum recebe 403 em `/admin` e não vê o menu; o usuário desativado sai na hora e não entra mais.
+- **Proteções e telas:** POST com `Origin` de outro site recusado; bloqueio depois de 5 erros; logout; cookie HttpOnly, SameSite=Lax e Secure; as telas de usuários, senha, pastas, buscas salvas e e-mail abrem.
+- **Visual:** tela de login conferida em 1440 px e 390 px; topo com o logo e o usuário.
+- **Não testado aqui:** o login atrás do Traefik real (HTTPS e `X-Forwarded-Proto`). Conferir no primeiro deploy em dev.
+
+## Arquivos
+- Novos:
+  - `usuarios.py`;
+  - `templates/login.html`, `minha_senha.html`, `usuarios_admin.html`, `usuario_form.html`, `_logo_discover.html`.
+- Alterados:
+  - `acesso.py` (`eh_admin` e `usuario_atual` agora leem a sessão de verdade);
+  - `web_app.py` (sessão, `exigir_login`, rotas `/login`, `/sair`, `/minha-senha`, `/admin/usuarios…`);
+  - `config.py`;
+  - `templates/base.html`, `_topbar.html`, `_admin_abas.html`;
+  - `static/style.css`.

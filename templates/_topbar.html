@@ -1,6 +1,6 @@
 <header class="topbar">
   <a href="/" class="home-btn" title="Página inicial" aria-label="{{ app_nome }} — página inicial">
-    <img src="{{ url_for('static', filename=app_logo) }}" alt="{{ app_logo_alt }}" height="30">
+    {% if app_logo %}<img src="{{ url_for('static', filename=app_logo) }}" alt="{{ app_logo_alt }}" height="30">{% else %}{% include '_logo_discover.html' %}{% endif %}
   </a>
   <nav class="topnav">
     <a href="/busca"{% if ativo == 'buscar' %} class="active"{% endif %}>Buscar</a>
@@ -9,4 +9,11 @@
     <a href="/buscas-salvas"{% if ativo == 'buscas_salvas' %} class="active"{% endif %}>Buscas salvas</a>
     {% if eh_admin %}<a href="/admin"{% if ativo == 'admin' %} class="active"{% endif %}>Administração</a>{% endif %}
   </nav>
+  {% if usuario_nome %}
+    <div class="topuser">
+      <span class="topuser-nome">{{ usuario_nome }}</span>
+      <a href="/minha-senha">Minha senha</a>
+      <form method="post" action="/sair"><button type="submit" class="topuser-sair">Sair</button></form>
+    </div>
+  {% endif %}
 </header>

@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Usuários — Administração — {{ app_nome }}{% endblock %}
+{% block content %}
+<div class="page is-results">
+  {% set ativo = 'admin' %}{% set aba = 'usuarios' %}
+  {% include '_topbar.html' %}
+  {% include '_admin_abas.html' %}
+
+  <main class="tabela-area">
+    <div class="tabela-header">
+      <div>
+        <h1>Usuários</h1>
+        <p class="hint">Quem pode entrar no {{ app_nome }}. Administradores veem esta área; usuários usam a busca, os projetos, as pastas e as buscas salvas.</p>
+      </div>
+      <a href="/admin/usuarios/novo" class="btn-sec">Novo usuário</a>
+    </div>
+
+    {% if erro %}<div class="alert alert-error" role="alert">{{ erro }}</div>{% endif %}
+    {% if sucesso %}<div class="alert alert-ok">{{ sucesso }}</div>{% endif %}
+    {% if senha_nova %}
+      <div class="senha-temporaria" role="status">
+        <p>Senha temporária de <strong>{{ senha_nova.email }}</strong>:</p>
+        <code class="senha-temporaria-valor">{{ senha_nova.senha }}</code>
+        <p class="hint">Passe para a pessoa por um canal seguro. Ela vai criar a própria senha no primeiro acesso. Esta senha não aparece de novo.</p>
+      </div>
+    {% endif %}
+
+    {% if usuarios %}
+      <table class="tabela">
+        <thead><tr><th>Nome</th><th>E-mail</th><th>Papel</th><th>Situação</th><th>Último acesso</th><th></th></tr></thead>
+        <tbody>
+          {% for u in usuarios %}
+            <tr>
+              <td><strong>{{ u.nome }}</strong>{% if u.id == eu %} <span class="hint">(você)</span>{% endif %}</td>
+              <td class="termo">{{ u.email }}</td>
+              <td>{{ u.papel_nome }}</td>
+              <td>
+                {% if not u.ativo %}<span class="badge badge-erro">Desativado</span>
+                {% elif u.trocar_senha %}<span class="badge badge-fila">Aguardando 1º acesso</span>
+                {% else %}<span class="badge badge-concluido">Ativo</span>{% endif %}
+              </td>
+              <td class="nowrap">{{ u.ultimo_login_local.strftime('%d/%m/%Y %H:%M') if u.ultimo_login_local else '—' }}</td>
+              <td class="nowrap"><a href="/admin/usuarios/{{ u.id }}">Editar</a></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% elif not erro %}
+      <div class="empty">Nenhum usuário ainda. <a href="/admin/usuarios/novo">Cadastrar o primeiro</a></div>
+    {% endif %}
+  </main>
+</div>
+{% endblock %}

@@ -13,12 +13,14 @@ OpenSearch (evita expor usuário/senha do cluster no front-end).
 """
 
 import os
+import secrets
 from html import escape as escapar_html
 from datetime import datetime, timedelta, timezone
-from urllib.parse import quote, urlencode
+from urllib.parse import quote, urlencode, urlsplit
 
-from flask import Flask, Response, abort, jsonify, redirect, render_template, request, send_file, send_from_directory
+from flask import Flask, Response, abort, g, jsonify, redirect, render_template, request, send_file, send_from_directory, session
 from opensearchpy.exceptions import RequestError
+from werkzeug.exceptions import Forbidden
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import secure_filename
 
@@ -42,6 +44,7 @@ import relatorios
 import relevancia
 import sugestoes
 import temas
+import usuarios
 import worker
 from opensearch_client import OpenSearchClient
 from utils import escapar_destaque, extensao, gerar_doc_id, montar_trecho, pode_embutir, renderizar_markdown
@@ -51,7 +54,21 @@ MODO_DEBUG = config.MODO_DEBUG  # FLASK_DEBUG=1 no .env liga; em produção fica
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # limite de 50 MB por envio
 if config.PROXIES_CONFIAVEIS > 0:
-    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=config.PROXIES_CONFIAVEIS)
+    # x_proto: atrás do Traefik o app recebe http, mas o navegador usa https
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=config.PROXIES_CONFIAVEIS, x_proto=config.PROXIES_CONFIAVEIS)
+
+# Sessão (login): cookie assinado, inacessível ao JavaScript, só no mesmo site
+# (SameSite=Lax barra formulários vindos de outros sites) e, por padrão, só HTTPS.
+if not config.SECRET_KEY:
+    print("[Login] SECRET_KEY não definida: usando uma chave temporária (todos saem a cada reinício).")
+app.secret_key = config.SECRET_KEY or secrets.token_hex(32)
+app.config.update(
+    SESSION_COOKIE_NAME="discover_sessao",
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=config.COOKIE_SEGURO,
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=config.SESSAO_HORAS),
+)
 cliente = OpenSearchClient()
 
 STATUS_TEXTO = {
@@ -104,7 +121,7 @@ _MARCA = {
 
 @app.context_processor
 def contexto_comum():
-    return {"eh_admin": acesso.eh_admin(), **_MARCA}
+    return {"eh_admin": acesso.eh_admin(), "usuario_nome": acesso.nome_atual(), **_MARCA}
 
 
 @app.template_global()
@@ -123,10 +140,235 @@ def url_com(**mudancas):
     return f"{request.path}?{texto}" if texto else request.path
 
 
+ROTAS_LIVRES = {"/login", "/favicon.ico"}        # abrem sem login
+ROTAS_TROCA_SENHA = {"/minha-senha", "/sair"}     # as únicas liberadas enquanto a senha temporária não é trocada
+
+
+def _origem_valida():
+    """POST só de páginas do próprio site. O navegador manda o cabeçalho Origin
+    nos formulários; se ele aponta para outro endereço, é um site alheio
+    tentando agir em nome de quem está logado (CSRF)."""
+    origem = request.headers.get("Origin")
+    if origem is None:
+        return True
+    return origem != "null" and urlsplit(origem).netloc == request.host
+
+
+def _carregar_usuario():
+    """Confere no banco se quem está na sessão continua ativo (e com o mesmo
+    papel). Usuário desativado ou apagado sai na próxima requisição. Com o
+    banco fora, vale o que está na sessão."""
+    dados = session.get("usuario")
+    if not isinstance(dados, dict):
+        return
+    try:
+        atual = usuarios.obter(dados.get("id"))
+    except Exception:
+        g.usuario = dados
+        return
+    if not atual or not atual["ativo"]:
+        session.clear()
+        return
+    g.usuario = {"id": atual["id"], "email": atual["email"], "nome": atual["nome"], "papel": atual["papel"]}
+    if g.usuario != dados:
+        session["usuario"] = g.usuario
+    session["trocar_senha"] = bool(atual["trocar_senha"])
+
+
 @app.before_request
-def proteger_admin():
-    if request.path.startswith("/admin") and not acesso.eh_admin():
+def exigir_login():
+    caminho = request.path
+    if request.method == "POST" and not _origem_valida():
+        abort(403, "O formulário veio de outro site e foi recusado.")
+    if caminho.startswith("/static/"):
+        return None
+    _carregar_usuario()
+    if caminho in ROTAS_LIVRES:
+        return None
+    if not acesso.logado():
+        if caminho == "/sugestoes" or request.accept_mimetypes.best == "application/json":
+            return jsonify({"erro": "Sessão expirada. Entre de novo."}), 401
+        destino = caminho + (f"?{request.query_string.decode('utf-8', 'replace')}" if request.query_string else "")
+        return redirect(f"/login?proximo={quote(destino)}")
+    if session.get("trocar_senha") and caminho not in ROTAS_TROCA_SENHA:
+        return redirect("/minha-senha")
+    if caminho.startswith("/admin") and not acesso.eh_admin():
         abort(403)
+    return None
+
+
+def _destino_seguro(proximo):
+    """Para onde voltar depois do login: só caminhos deste site (nunca
+    //outro-site ou http://...), para o login não virar um redirecionador."""
+    if proximo and proximo.startswith("/") and not proximo.startswith("//") and "\\" not in proximo:
+        return proximo
+    return "/"
+
+
+def _acesso_local():
+    return request.host.split(":")[0] in {"localhost", "127.0.0.1"}
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    proximo = _destino_seguro(request.values.get("proximo"))
+    if acesso.logado():
+        return redirect(proximo)
+
+    erro = None
+    email = ""
+    sem_usuarios = False
+    try:
+        usuarios.garantir_admin_inicial()
+        sem_usuarios = usuarios.contar() == 0
+    except Exception as e:
+        print(f"[Login] Banco de usuários indisponível: {e}")
+        erro = "Não consegui acessar o banco de usuários agora. Tente de novo em instantes."
+
+    if request.method == "POST" and not erro and not sem_usuarios:
+        email = request.form.get("email", "").strip()[:255]
+        senha = request.form.get("senha", "")
+        ip = request.remote_addr
+        if config.COOKIE_SEGURO and not request.is_secure and not _acesso_local():
+            erro = "Acesse pelo endereço https://. Sem HTTPS o navegador não guarda o login (ou defina COOKIE_SEGURO=0)."
+        elif usuarios.bloqueado(email, ip):
+            erro = "Muitas tentativas seguidas. Aguarde 15 minutos e tente de novo."
+        else:
+            try:
+                usuario = usuarios.autenticar(email, senha)
+            except Exception as e:
+                print(f"[Login] Erro ao autenticar: {e}")
+                usuario, erro = None, "Não consegui acessar o banco de usuários agora. Tente de novo em instantes."
+            if usuario:
+                usuarios.limpar_falhas(email, ip)
+                session.clear()
+                session.permanent = True
+                session["usuario"] = {"id": usuario["id"], "email": usuario["email"], "nome": usuario["nome"], "papel": usuario["papel"]}
+                session["trocar_senha"] = bool(usuario["trocar_senha"])
+                return redirect("/minha-senha" if usuario["trocar_senha"] else proximo)
+            if not erro:
+                usuarios.registrar_falha(email, ip)
+                erro = "E-mail ou senha incorretos."
+
+    return render_template("login.html", erro=erro, email=email, proximo=proximo, sem_usuarios=sem_usuarios), (401 if erro and request.method == "POST" else 200)
+
+
+@app.route("/sair", methods=["POST"])
+def sair():
+    session.clear()
+    return redirect("/login")
+
+
+@app.route("/minha-senha", methods=["GET", "POST"])
+def minha_senha():
+    obrigatoria = bool(session.get("trocar_senha"))
+    erro = sucesso = None
+    if request.method == "POST":
+        atual = request.form.get("senha_atual", "")
+        nova = request.form.get("senha_nova", "")
+        try:
+            usuario_id = session["usuario"]["id"]
+            if not usuarios.conferir_senha(usuario_id, atual):
+                raise ValueError("A senha atual não confere.")
+            usuarios.validar_senha(nova, request.form.get("senha_confirmacao", ""))
+            if nova == atual:
+                raise ValueError("A nova senha precisa ser diferente da atual.")
+            usuarios.definir_senha(usuario_id, nova, trocar_senha=False)
+        except ValueError as e:
+            erro = str(e)
+        except Exception as e:
+            erro = f"Não consegui trocar a senha agora: {e}"
+        else:
+            session["trocar_senha"] = False
+            if obrigatoria:
+                return redirect("/")
+            sucesso = "Senha trocada."
+    return render_template("minha_senha.html", erro=erro, sucesso=sucesso, obrigatoria=obrigatoria,
+                           minimo=usuarios.SENHA_MINIMA)
+
+
+def _usuario_para_tela(u):
+    u = dict(u)
+    u["papel_nome"] = usuarios.PAPEIS.get(u["papel"], u["papel"])
+    for campo in ("criado_em", "ultimo_login"):
+        u[campo + "_local"] = u[campo] + timedelta(hours=config.FUSO_HORAS) if u.get(campo) else None
+    return u
+
+
+def _tela_usuarios(erro=None, sucesso=None, senha_nova=None, status=200):
+    lista = []
+    try:
+        lista = [_usuario_para_tela(u) for u in usuarios.listar()]
+    except Exception as e:
+        erro = erro or f"Banco de dados de usuários indisponível: {e}"
+    if not sucesso:
+        sucesso = {"salvo": "Usuário salvo."}.get(request.args.get("ok"))
+    return render_template("usuarios_admin.html", usuarios=lista, erro=erro, sucesso=sucesso, senha_nova=senha_nova,
+                           eu=session["usuario"]["id"]), status
+
+
+@app.route("/admin/usuarios")
+def admin_usuarios():
+    return _tela_usuarios()
+
+
+@app.route("/admin/usuarios/novo", methods=["GET", "POST"])
+def admin_usuario_novo():
+    dados = {"email": "", "nome": "", "papel": "usuario"}
+    erro = None
+    if request.method == "POST":
+        dados = {k: request.form.get(k, "").strip() for k in dados}
+        senha = usuarios.senha_temporaria()
+        try:
+            usuarios.criar(dados["email"], dados["nome"], dados["papel"], senha, trocar_senha=True)
+        except ValueError as e:
+            erro = str(e)
+        except Exception as e:
+            erro = f"Banco de dados de usuários indisponível: {e}"
+        else:
+            return _tela_usuarios(sucesso=f"Usuário {usuarios.normalizar_email(dados['email'])} criado.",
+                                  senha_nova={"email": usuarios.normalizar_email(dados["email"]), "senha": senha})
+    return render_template("usuario_form.html", usuario=None, dados=dados, erro=erro, papeis=usuarios.PAPEIS,
+                           limite_nome=usuarios.LIMITE_NOME)
+
+
+@app.route("/admin/usuarios/<int:usuario_id>", methods=["GET", "POST"])
+def admin_usuario_editar(usuario_id):
+    try:
+        usuario = usuarios.obter(usuario_id)
+    except Exception as e:
+        return render_template("erro.html", titulo="Usuários indisponíveis", mensagem=f"Banco de dados indisponível: {e}"), 503
+    if not usuario:
+        abort(404, "Usuário não encontrado.")
+
+    eu = session["usuario"]["id"] == usuario_id
+    dados = {"nome": usuario["nome"], "papel": usuario["papel"], "ativo": bool(usuario["ativo"])}
+    erro = None
+    if request.method == "POST":
+        if request.form.get("acao") == "senha":
+            senha = usuarios.senha_temporaria()
+            try:
+                usuarios.definir_senha(usuario_id, senha, trocar_senha=True)
+            except Exception as e:
+                erro = f"Não consegui gerar a senha: {e}"
+            else:
+                return _tela_usuarios(sucesso=f"Nova senha temporária gerada para {usuario['email']}.",
+                                      senha_nova={"email": usuario["email"], "senha": senha})
+        else:
+            dados = {"nome": request.form.get("nome", ""), "papel": request.form.get("papel", ""),
+                     "ativo": request.form.get("ativo") == "1"}
+            try:
+                if eu and (dados["papel"] != "admin" or not dados["ativo"]):
+                    raise ValueError("Você não pode tirar o seu próprio acesso de administrador nem se desativar.")
+                usuarios.atualizar(usuario_id, dados["nome"], dados["papel"], dados["ativo"])
+            except ValueError as e:
+                erro = str(e)
+            except Exception as e:
+                erro = f"Banco de dados de usuários indisponível: {e}"
+            else:
+                return redirect("/admin/usuarios?ok=salvo")
+    return render_template("usuario_form.html", usuario=_usuario_para_tela(usuario), dados=dados, erro=erro,
+                           papeis=usuarios.PAPEIS, limite_nome=usuarios.LIMITE_NOME, eu=eu)
 
 
 @app.route("/favicon.ico")
@@ -137,10 +379,9 @@ def favicon():
 
 @app.errorhandler(403)
 def sem_permissao(e):
-    return render_template(
-        "erro.html", titulo="Acesso restrito",
-        mensagem="Você não tem permissão para acessar a área de administração.",
-    ), 403
+    mensagem = e.description if e.description and e.description != Forbidden.description else \
+        "Você não tem permissão para acessar a área de administração."
+    return render_template("erro.html", titulo="Acesso restrito", mensagem=mensagem), 403
 
 
 @app.errorhandler(404)

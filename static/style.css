@@ -1210,3 +1210,174 @@ form.inline { display: inline; margin-right: 10px; }
   .menu-admin a { white-space: nowrap; }
   .page:has(> .menu-admin) > main { grid-column: 1; grid-row: 3; padding: 20px 16px 48px 16px; }
 }
+
+/* ---- Login (tela de entrada) e usuários ------------------------------------ */
+
+/* Logo do Discover: DISCOVER largo, com a lupa no lugar do "O" (_logo_discover.html) */
+.logo-discover {
+  display: inline-block;
+  font-family: "Archivo", "Arial Black", Arial, sans-serif;
+  font-stretch: 125%;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--rci-navy);
+}
+.logo-lupa {
+  display: inline-block;
+  width: 0.77em;
+  height: 0.85em;
+  vertical-align: -0.12em;
+  margin: 0 0.04em 0 0.02em;
+  color: var(--rci-blue);
+}
+
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  flex-wrap: wrap;
+  background: var(--rci-bg);
+}
+.login-marca {
+  flex: 1 1 520px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 48px;
+  padding: 56px 64px;
+  background: var(--rci-navy);
+  color: #f5eedb;
+  font-family: "Atkinson Hyperlegible", Arial, sans-serif;
+}
+.login-marca .logo-discover { color: #f5eedb; font-size: clamp(40px, 6vw, 76px); }
+.login-marca .logo-lupa { color: #6f95ff; }
+.login-categoria {
+  margin: 20px 0 0 0;
+  font-size: 15px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #b9c3d9;
+}
+.login-pilares {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  font-size: clamp(20px, 2.2vw, 28px);
+  line-height: 1.25;
+}
+.login-pilares li { display: flex; align-items: baseline; gap: 16px; }
+.login-pilar-n {
+  flex: 0 0 auto;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #6f95ff;
+}
+.login-rci { margin: 0; font-size: 14px; letter-spacing: 0.04em; color: #b9c3d9; display: flex; align-items: center; gap: 8px; }
+.login-rci-logo {
+  font-family: "Archivo", "Arial Black", Arial, sans-serif;
+  font-stretch: 125%;
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: -0.03em;
+  color: #f5eedb;
+}
+
+.login-form-area {
+  flex: 1 1 420px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 32px;
+  font-family: "Atkinson Hyperlegible", Arial, sans-serif;
+}
+.login-form { width: 100%; max-width: 380px; }
+.login-form h1 { margin: 0 0 4px 0; font-size: 28px; color: var(--rci-navy); }
+.login-form .campo { display: block; margin: 0 0 16px 0; }
+.login-form .campo > span { display: block; margin-bottom: 6px; font-weight: 700; font-size: 14px; color: var(--rci-navy); }
+.login-form input[type="email"],
+.login-form input[type="password"] {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #c9d0dc;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 15px;
+  color: var(--rci-ink);
+  background: #fff;
+}
+.login-form input:focus-visible { outline: 2px solid var(--rci-blue); outline-offset: 1px; border-color: var(--rci-blue); }
+.login-botao { width: 100%; padding: 13px 22px; font-size: 15px; margin-top: 4px; }
+.login-botao[disabled] { opacity: 0.5; cursor: default; }
+.login-ajuda { margin-top: 18px; }
+.login-form code { font-size: 12.5px; }
+
+@media (max-width: 760px) {
+  .login-marca { padding: 36px 24px; gap: 32px; }
+  .login-form-area { padding: 36px 16px; }
+}
+
+/* Usuário logado, à direita no topo */
+.topuser {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 13.5px;
+  color: var(--rci-text-muted);
+}
+.topuser a { color: var(--rci-text-muted); text-decoration: none; }
+.topuser a:hover { color: var(--rci-blue); }
+.topuser form { margin: 0; }
+.topuser-nome { color: var(--rci-ink); font-weight: 600; }
+.topuser-sair {
+  padding: 6px 12px;
+  border: 1px solid var(--rci-border);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--rci-ink);
+  font: inherit;
+  font-size: 13.5px;
+  cursor: pointer;
+}
+.topuser-sair:hover { background: var(--rci-bg-soft); }
+
+/* Formulários: e-mail e senha com o mesmo visual dos campos de texto */
+.form-projeto input[type="email"], .form-projeto input[type="password"] {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--rci-border);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 14px;
+}
+
+/* Senha temporária mostrada uma vez ao admin */
+.senha-temporaria {
+  margin: 0 0 18px 0;
+  padding: 14px 18px;
+  border: 1px solid var(--rci-highlight);
+  border-radius: 10px;
+  background: var(--rci-bg-soft);
+}
+.senha-temporaria p { margin: 0 0 8px 0; }
+.senha-temporaria .hint { margin: 8px 0 0 0; }
+.senha-temporaria-valor {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: #fff;
+  border: 1px solid var(--rci-border);
+  font-size: 17px;
+  letter-spacing: 0.04em;
+  user-select: all;
+}
+.form-senha-temp { max-width: 520px; margin-top: 32px; padding-top: 20px; border-top: 1px solid var(--rci-border); }
+
+/* Logo do Discover no topo (quando APP_LOGO está vazio) */
+.home-btn { text-decoration: none; }
+.home-btn .logo-discover { font-size: 24px; }

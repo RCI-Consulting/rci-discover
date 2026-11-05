@@ -1,0 +1,8 @@
+{# Logo do Discover: DISCOVER em caixa alta, fonte larga, com o "O" virando lupa.
+   Cores por classe: .logo-discover (texto) e .logo-lupa (lupa). O tamanho vem do
+   font-size de quem inclui. Com outro APP_NOME, mostra o nome comum (_marca.html). #}
+{% if app_nome|upper == 'DISCOVER' %}
+<span class="logo-discover" role="img" aria-label="{{ app_nome }}"><span aria-hidden="true">DISC</span><svg class="logo-lupa" viewBox="0 0 60 66" aria-hidden="true"><circle cx="28" cy="28" r="22.5" fill="none" stroke="currentColor" stroke-width="11"></circle><line x1="45" y1="45" x2="54" y2="56" stroke="currentColor" stroke-width="11" stroke-linecap="round"></line></svg><span aria-hidden="true">VER</span></span>
+{% else %}
+<span class="brand">{% include '_marca.html' %}</span>
+{% endif %}

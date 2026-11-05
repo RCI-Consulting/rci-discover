@@ -12,11 +12,28 @@ MODO_DEBUG = os.getenv("FLASK_DEBUG", "0") == "1"
 # Marca do produto: nome exibido nas telas, títulos e e-mails. Trocar o nome
 # é só mudar estas variáveis no .env / Dokploy. APP_NOME_DESTAQUE é o final do
 # nome pintado em azul (ex.: "Explor" + "IA"); vazio = nome todo numa cor só.
-APP_NOME = os.getenv("APP_NOME", "ExplorIA")
-APP_NOME_DESTAQUE = os.getenv("APP_NOME_DESTAQUE", "IA")
-# Logo do botão "home" no topo: caminho dentro de static/ e texto alternativo.
-APP_LOGO = os.getenv("APP_LOGO", "img/rci-logo-azul.png")
+APP_NOME = os.getenv("APP_NOME", "Discover")
+APP_NOME_DESTAQUE = os.getenv("APP_NOME_DESTAQUE", "")
+# Logo do botão "home" no topo: caminho de uma imagem dentro de static/ e texto
+# alternativo. Vazio (padrão) = logo do Discover desenhado em HTML (lupa no "O").
+APP_LOGO = os.getenv("APP_LOGO", "")
 APP_LOGO_ALT = os.getenv("APP_LOGO_ALT", "RCI")
+
+# Login local (usuarios.py). SECRET_KEY assina o cookie da sessão: defina um
+# valor longo e aleatório no Dokploy (ex.: python -c "import secrets;
+# print(secrets.token_hex(32))"). Sem ela, uma chave temporária é gerada a cada
+# reinício e todo mundo precisa entrar de novo.
+SECRET_KEY = os.getenv("SECRET_KEY", "")
+# Horas que a sessão dura sem precisar entrar de novo.
+SESSAO_HORAS = int(os.getenv("SESSAO_HORAS", "8"))
+# Cookie só por HTTPS. Use COOKIE_SEGURO=0 apenas acessando por http:// sem
+# domínio (ex.: IP da VM de testes); em localhost o navegador já aceita.
+COOKIE_SEGURO = os.getenv("COOKIE_SEGURO", "1") == "1"
+# Primeiro administrador: criado no primeiro acesso à tela de login, só se
+# ainda não existir nenhum usuário. Ele troca a senha ao entrar.
+ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "")
+ADMIN_SENHA = os.getenv("ADMIN_SENHA", "")
+ADMIN_NOME = os.getenv("ADMIN_NOME", "Administrador")
  
 # Conexão OpenSearch
 OPENSEARCH_HOST = os.getenv("OPENSEARCH_HOST", "opensearch")

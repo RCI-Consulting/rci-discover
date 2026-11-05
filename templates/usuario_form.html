@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Editar usuário' if usuario else 'Novo usuário' }} — {{ app_nome }}{% endblock %}
+{% block content %}
+<div class="page is-results">
+  {% set ativo = 'admin' %}{% set aba = 'usuarios' %}
+  {% include '_topbar.html' %}
+  {% include '_admin_abas.html' %}
+
+  <main class="tabela-area">
+    <h1>{{ 'Editar usuário' if usuario else 'Novo usuário' }}</h1>
+    {% if usuario %}
+      <p class="hint">{{ usuario.email }} · cadastrado em {{ usuario.criado_em_local.strftime('%d/%m/%Y') }}{% if usuario.ultimo_login_local %} · último acesso em {{ usuario.ultimo_login_local.strftime('%d/%m/%Y %H:%M') }}{% endif %}</p>
+    {% else %}
+      <p class="hint">O sistema gera uma senha temporária, que aparece uma vez só depois de salvar. A pessoa cria a própria senha no primeiro acesso.</p>
+    {% endif %}
+
+    {% if erro %}<div class="alert alert-error" role="alert">{{ erro }}</div>{% endif %}
+
+    <form method="post" class="form-projeto">
+      <input type="hidden" name="acao" value="salvar">
+      {% if not usuario %}
+        <label class="campo">
+          <span>E-mail</span>
+          <input type="email" name="email" value="{{ dados.email }}" maxlength="255" autocomplete="off" required autofocus>
+        </label>
+      {% endif %}
+      <label class="campo">
+        <span>Nome</span>
+        <input type="text" name="nome" value="{{ dados.nome }}" maxlength="{{ limite_nome }}" required {{ '' if not usuario else 'autofocus' }}>
+      </label>
+      <label class="campo">
+        <span>Papel</span>
+        <select name="papel" {{ 'disabled' if eu }}>
+          {% for chave, nome in papeis.items() %}
+            <option value="{{ chave }}" {{ 'selected' if chave == dados.papel }}>{{ nome }}</option>
+          {% endfor %}
+        </select>
+        {% if eu %}<input type="hidden" name="papel" value="{{ dados.papel }}">{% endif %}
+      </label>
+      {% if usuario %}
+        <label class="campo-check">
+          <input type="checkbox" name="ativo" value="1" {{ 'checked' if dados.ativo }} {{ 'disabled' if eu }}>
+          Ativo (desmarque para bloquear o acesso sem apagar o histórico)
+        </label>
+        {% if eu %}<input type="hidden" name="ativo" value="1">{% endif %}
+      {% endif %}
+      <div class="acoes-form">
+        <button type="submit" class="btn-prim">{{ 'Salvar' if usuario else 'Criar usuário' }}</button>
+        <a href="/admin/usuarios" class="voltar-btn">Cancelar</a>
+      </div>
+    </form>
+
+    {% if usuario %}
+      <form method="post" class="form-senha-temp">
+        <input type="hidden" name="acao" value="senha">
+        <h2>Senha</h2>
+        <p class="hint">Gera uma nova senha temporária e obriga a pessoa a criar outra no próximo acesso. A senha atual deixa de valer.</p>
+        <button type="submit" class="btn-sec" onclick="return confirm('Gerar uma nova senha temporária para este usuário?')">Gerar nova senha temporária</button>
+      </form>
+    {% endif %}
+  </main>
+</div>
+{% endblock %}
