@@ -26,6 +26,7 @@ from werkzeug.utils import secure_filename
 
 import acesso
 import auditoria
+import banco
 import buscas_salvas
 import config
 import configuracoes
@@ -1901,6 +1902,7 @@ def _deve_iniciar_workers():
 
 
 if _deve_iniciar_workers():
+    banco.iniciar()      # cria banco/tabelas/1º admin no deploy, em segundo plano (log [Banco])
     worker.iniciar()
     crawler.iniciar()
     notificacoes.iniciar()
