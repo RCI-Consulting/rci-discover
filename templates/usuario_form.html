@@ -44,6 +44,19 @@
         </label>
         {% if eu %}<input type="hidden" name="ativo" value="1">{% endif %}
       {% endif %}
+      <fieldset class="campo">
+        <legend>Projetos</legend>
+        <p class="hint">Projetos que esta pessoa vê e onde pode pesquisar (a busca geral dela também fica restrita a eles). Para <strong>administradores</strong> não faz diferença: eles acessam todos.</p>
+        {% for p in disponiveis %}
+          <label class="faceta-item">
+            <input type="checkbox" name="projeto" value="{{ p.id }}" {{ 'checked' if p.id in marcados }}>
+            <span class="faceta-rotulo">{{ p.nome }}</span>
+            <span class="faceta-n">{{ p.indices|length }} índice(s)</span>
+          </label>
+        {% else %}
+          <p class="hint">Nenhum projeto cadastrado. <a href="/admin/projetos/novo">Criar projeto</a></p>
+        {% endfor %}
+      </fieldset>
       <div class="acoes-form">
         <button type="submit" class="btn-prim">{{ 'Salvar' if usuario else 'Criar usuário' }}</button>
         <a href="/admin/usuarios" class="voltar-btn">Cancelar</a>

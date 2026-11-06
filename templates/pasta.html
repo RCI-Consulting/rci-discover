@@ -14,6 +14,7 @@
     </p>
 
     {% if erro %}<div class="alert alert-error">{{ erro }}</div>{% endif %}
+    {% if ocultos %}<p class="hint">{{ ocultos }} documento(s) desta pasta são de projetos a que você não tem acesso e não aparecem aqui.</p>{% endif %}
     {% if sucesso %}<div class="alert alert-ok">{{ sucesso }}</div>{% endif %}
 
     {% if itens %}

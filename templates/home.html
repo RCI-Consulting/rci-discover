@@ -17,8 +17,8 @@
           </svg>
         </span>
         <h2>Busca geral</h2>
-        <p>Pesquise em todos os documentos de todos os índices.</p>
-        <span class="home-card-ir">Buscar em tudo &rarr;</span>
+        <p>{% if eh_admin %}Pesquise em todos os documentos de todos os índices.{% else %}Pesquise em todos os documentos dos seus projetos.{% endif %}</p>
+        <span class="home-card-ir">{{ 'Buscar em tudo' if eh_admin else 'Buscar nos meus projetos' }} &rarr;</span>
       </a>
 
       <a class="home-card" href="/projetos">

@@ -33,6 +33,16 @@ _DDL = [
         FOREIGN KEY (projeto_id) REFERENCES projetos (id) ON DELETE CASCADE
     ) CHARACTER SET utf8mb4
     """,
+    # Quem (além dos administradores, que veem tudo) acessa cada projeto.
+    """
+    CREATE TABLE IF NOT EXISTS projeto_usuarios (
+        projeto_id BIGINT NOT NULL,
+        usuario_id BIGINT NOT NULL,
+        PRIMARY KEY (projeto_id, usuario_id),
+        INDEX idx_usuario (usuario_id),
+        FOREIGN KEY (projeto_id) REFERENCES projetos (id) ON DELETE CASCADE
+    ) CHARACTER SET utf8mb4
+    """,
 ]
 
 _SLUG_VALIDO = re.compile(r"^[a-z0-9][a-z0-9-]{0,49}$")
@@ -92,17 +102,28 @@ def _indices_validos(lista):
     return vistos
 
 
-def listar():
-    """Todos os projetos, com a lista dos índices de cada um."""
+def listar(usuario_id=None):
+    """Projetos com a lista dos índices e a quantidade de usuários de cada um.
+    Com `usuario_id`, só os projetos a que essa pessoa tem acesso."""
     with _conectar() as con, con.cursor() as cur:
-        cur.execute("SELECT id, slug, nome, descricao FROM projetos ORDER BY nome")
+        if usuario_id is None:
+            cur.execute("SELECT id, slug, nome, descricao FROM projetos ORDER BY nome")
+        else:
+            cur.execute(
+                "SELECT id, slug, nome, descricao FROM projetos WHERE id IN "
+                "(SELECT projeto_id FROM projeto_usuarios WHERE usuario_id = %s) ORDER BY nome",
+                (usuario_id,),
+            )
         projetos = cur.fetchall()
         cur.execute("SELECT projeto_id, indice FROM projeto_indices ORDER BY indice")
         por_projeto = {}
         for linha in cur.fetchall():
             por_projeto.setdefault(linha["projeto_id"], []).append(linha["indice"])
+        cur.execute("SELECT projeto_id, COUNT(*) AS n FROM projeto_usuarios GROUP BY projeto_id")
+        usuarios_por_projeto = {linha["projeto_id"]: linha["n"] for linha in cur.fetchall()}
     for p in projetos:
         p["indices"] = por_projeto.get(p["id"], [])
+        p["qtd_usuarios"] = usuarios_por_projeto.get(p["id"], 0)
     return projetos
 
 
@@ -114,6 +135,8 @@ def _obter(where, valor):
             return None
         cur.execute("SELECT indice FROM projeto_indices WHERE projeto_id = %s ORDER BY indice", (projeto["id"],))
         projeto["indices"] = [linha["indice"] for linha in cur.fetchall()]
+        cur.execute("SELECT usuario_id FROM projeto_usuarios WHERE projeto_id = %s", (projeto["id"],))
+        projeto["usuarios"] = [linha["usuario_id"] for linha in cur.fetchall()]
     return projeto
 
 
@@ -125,7 +148,7 @@ def obter(projeto_id):
     return _obter("id", projeto_id)
 
 
-def criar(nome, descricao, lista_indices):
+def criar(nome, descricao, lista_indices, usuarios=None):
     """Cria o projeto e devolve o registro. O endereço (slug) vem do nome e,
     se já existir, ganha um sufixo (-2, -3...). Levanta ValueError."""
     nome, descricao = _validar(nome, descricao)
@@ -144,22 +167,73 @@ def criar(nome, descricao, lista_indices):
         )
         projeto_id = cur.lastrowid
         _gravar_indices(cur, projeto_id, _indices_validos(lista_indices))
+        _gravar_usuarios(cur, projeto_id, usuarios or [])
     return obter(projeto_id)
 
 
-def atualizar(projeto_id, nome, descricao, lista_indices):
-    """Atualiza nome, descrição e índices (o endereço não muda, para os links
-    salvos continuarem valendo). Levanta ValueError."""
+def atualizar(projeto_id, nome, descricao, lista_indices, usuarios=None):
+    """Atualiza nome, descrição, índices e (se `usuarios` vier) quem acessa.
+    O endereço não muda, para os links salvos continuarem valendo. Levanta ValueError."""
     nome, descricao = _validar(nome, descricao)
     with _conectar() as con, con.cursor() as cur:
         cur.execute("UPDATE projetos SET nome = %s, descricao = %s WHERE id = %s", (nome, descricao, projeto_id))
         cur.execute("DELETE FROM projeto_indices WHERE projeto_id = %s", (projeto_id,))
         _gravar_indices(cur, projeto_id, _indices_validos(lista_indices))
+        if usuarios is not None:
+            cur.execute("DELETE FROM projeto_usuarios WHERE projeto_id = %s", (projeto_id,))
+            _gravar_usuarios(cur, projeto_id, usuarios)
 
 
 def _gravar_indices(cur, projeto_id, lista):
     for indice in lista:
         cur.execute("INSERT INTO projeto_indices (projeto_id, indice) VALUES (%s, %s)", (projeto_id, indice))
+
+
+def _gravar_usuarios(cur, projeto_id, usuario_ids):
+    for usuario_id in sorted({int(u) for u in usuario_ids}):
+        cur.execute("INSERT INTO projeto_usuarios (projeto_id, usuario_id) VALUES (%s, %s)", (projeto_id, usuario_id))
+
+
+# ---- Acesso dos usuários aos projetos ---------------------------------------
+# Administradores veem todos os projetos e índices; os demais só os projetos
+# em que foram incluídos (aqui ou na tela do usuário) e os índices deles.
+
+def ids_do_usuario(usuario_id):
+    """Ids dos projetos a que o usuário tem acesso."""
+    with _conectar() as con, con.cursor() as cur:
+        cur.execute("SELECT projeto_id FROM projeto_usuarios WHERE usuario_id = %s", (usuario_id,))
+        return {linha["projeto_id"] for linha in cur.fetchall()}
+
+
+def indices_do_usuario(usuario_id):
+    """Índices que o usuário pode pesquisar: os de todos os projetos dele."""
+    with _conectar() as con, con.cursor() as cur:
+        cur.execute(
+            "SELECT DISTINCT pi.indice FROM projeto_indices pi "
+            "JOIN projeto_usuarios pu ON pu.projeto_id = pi.projeto_id WHERE pu.usuario_id = %s",
+            (usuario_id,),
+        )
+        return {linha["indice"] for linha in cur.fetchall() if indices.eh_gerenciado(linha["indice"])}
+
+
+def definir_projetos_do_usuario(usuario_id, projeto_ids):
+    """Troca os projetos do usuário pela lista dada (tela do usuário)."""
+    with _conectar() as con, con.cursor() as cur:
+        cur.execute("DELETE FROM projeto_usuarios WHERE usuario_id = %s", (usuario_id,))
+        validos = set()
+        if projeto_ids:
+            cur.execute("SELECT id FROM projetos")
+            existentes = {linha["id"] for linha in cur.fetchall()}
+            validos = {int(p) for p in projeto_ids} & existentes
+        for projeto_id in sorted(validos):
+            cur.execute("INSERT INTO projeto_usuarios (projeto_id, usuario_id) VALUES (%s, %s)", (projeto_id, usuario_id))
+
+
+def projetos_por_usuario():
+    """{usuario_id: quantidade de projetos}, para a lista de usuários."""
+    with _conectar() as con, con.cursor() as cur:
+        cur.execute("SELECT usuario_id, COUNT(*) AS n FROM projeto_usuarios GROUP BY usuario_id")
+        return {linha["usuario_id"]: linha["n"] for linha in cur.fetchall()}
 
 
 def apagar(projeto_id):

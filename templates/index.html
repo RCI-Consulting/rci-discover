@@ -33,6 +33,7 @@
       </div>
       <button type="submit" class="search-btn">Buscar</button>
     </form>
+    {% if sem_acesso %}<div class="alert alert-error aviso-sem-acesso" role="alert">Você ainda não tem acesso a nenhum projeto, então a busca não encontra documentos. Peça ao administrador para incluir você em um projeto.</div>{% endif %}
     {% if q or listar_tudo %}</div><div></div></div>{% endif %}
 
   {% if not (q or listar_tudo) %}</div>{% endif %}

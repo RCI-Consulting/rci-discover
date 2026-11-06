@@ -20,7 +20,7 @@
 
     {% if projetos %}
       <table class="tabela">
-        <thead><tr><th>Projeto</th><th>Índices</th><th>Endereço</th><th></th></tr></thead>
+        <thead><tr><th>Projeto</th><th>Índices</th><th>Usuários</th><th>Endereço</th><th></th></tr></thead>
         <tbody>
           {% for p in projetos %}
             <tr>
@@ -30,6 +30,7 @@
               <td>
                 {% for i in p.indices_exibicao %}<span class="tag-indice">{{ i }}</span> {% else %}<span class="hint">nenhum</span>{% endfor %}
               </td>
+              <td class="num">{% if p.qtd_usuarios %}{{ p.qtd_usuarios }}{% else %}<span class="hint">só admins</span>{% endif %}</td>
               <td class="nowrap"><a href="/p/{{ p.slug }}">/p/{{ p.slug }}</a></td>
               <td class="nowrap">
                 <a href="/admin/projetos/{{ p.id }}">Editar</a>

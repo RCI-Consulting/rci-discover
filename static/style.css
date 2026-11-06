@@ -1421,3 +1421,8 @@ form.inline { display: inline; margin-right: 10px; }
 .perfil-secao-topo { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; }
 .perfil-secao-topo h2 { margin: 0 0 6px 0; }
 .perfil-secao-topo a { font-size: 13.5px; text-decoration: none; }
+
+/* ---- Acesso por projeto ----------------------------------------------------- */
+.aviso-sem-acesso { max-width: 640px; margin: 14px auto 0 auto; }
+.lista-projetos-perfil { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 0 0; }
+.lista-projetos-perfil a.tag-indice { text-decoration: none; }

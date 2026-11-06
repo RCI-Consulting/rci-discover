@@ -35,6 +35,20 @@
         {% endfor %}
       </fieldset>
 
+      <fieldset class="campo">
+        <legend>Quem pode acessar</legend>
+        <p class="hint">Só as pessoas marcadas veem este projeto e pesquisam nos índices dele. Administradores acessam todos os projetos e não aparecem aqui.</p>
+        {% for u in pessoas %}
+          <label class="faceta-item">
+            <input type="checkbox" name="usuario" value="{{ u.id }}" {{ 'checked' if u.id in com_acesso }}>
+            <span class="faceta-rotulo">{{ u.nome }}{% if not u.ativo %} <span class="hint">(desativado)</span>{% endif %}</span>
+            <span class="faceta-n">{{ u.email }}</span>
+          </label>
+        {% else %}
+          <p class="hint">Nenhum usuário comum cadastrado. <a href="/admin/usuarios/novo">Cadastrar usuário</a></p>
+        {% endfor %}
+      </fieldset>
+
       <div class="acoes-form">
         <button type="submit" class="btn-prim">{{ 'Salvar' if projeto else 'Criar projeto' }}</button>
         <a href="/admin/projetos" class="voltar-btn">Cancelar</a>

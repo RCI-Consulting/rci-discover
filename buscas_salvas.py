@@ -181,12 +181,24 @@ def apagar(busca_id, dono):
 # ---- Alertas ----------------------------------------------------------------
 
 def _alvo(busca):
-    """Índices onde a busca roda: os do projeto, ou todos."""
+    """Índices onde a busca roda (o alerta usa a mesma regra da tela): os do
+    projeto, ou todos; para quem não é administrador, só os dos projetos a que
+    a pessoa tem acesso. Dono desconhecido, desativado ou sem projetos: nada."""
+    import usuarios  # aqui dentro: usuarios não depende deste módulo, mas evita ciclo na carga
+    dono = usuarios.obter_por_email(busca["dono"]) if busca.get("dono") else None
+    if not dono or not dono["ativo"]:
+        return ""
+    permitidos = None if dono["papel"] == "admin" else projetos.indices_do_usuario(dono["id"])
     if busca.get("projeto"):
         projeto = projetos.obter_por_slug(busca["projeto"])
-        nomes = [i for i in (projeto or {}).get("indices", []) if indices.eh_gerenciado(i)]
-        return ",".join(nomes)
-    return indices.padrao_busca()
+        if not projeto or (permitidos is not None and projeto["id"] not in projetos.ids_do_usuario(dono["id"])):
+            return ""
+        nomes = [i for i in projeto["indices"] if indices.eh_gerenciado(i)]
+    elif permitidos is None:
+        return indices.padrao_busca()
+    else:
+        nomes = sorted(permitidos)
+    return ",".join(nomes)
 
 
 def documentos_novos(cliente, busca, desde, limite=MAX_DOCS_EMAIL):

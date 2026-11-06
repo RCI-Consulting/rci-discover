@@ -7,7 +7,7 @@
 
   <main class="tabela-area">
     <h1>Projetos</h1>
-    <p class="hint">Cada projeto reúne alguns índices e tem uma busca própria. Para pesquisar em tudo, use <a href="/busca">Buscar</a>.</p>
+    <p class="hint">Cada projeto reúne alguns índices e tem uma busca própria.{% if eh_admin %} Para pesquisar em tudo, use <a href="/busca">Buscar</a>.{% else %} Aqui aparecem os projetos a que você tem acesso; a <a href="/busca">busca geral</a> pesquisa em todos eles.{% endif %}</p>
 
     {% if erro %}
       <div class="alert alert-error">{{ erro }}</div>
@@ -22,7 +22,7 @@
         {% endfor %}
       </div>
     {% else %}
-      <div class="empty">Nenhum projeto ainda.{% if eh_admin %} <a href="/admin/projetos/novo">Criar o primeiro projeto</a>{% endif %}</div>
+      <div class="empty">{% if eh_admin %}Nenhum projeto ainda. <a href="/admin/projetos/novo">Criar o primeiro projeto</a>{% else %}Você ainda não tem acesso a nenhum projeto. Peça ao administrador para incluir você.{% endif %}</div>
     {% endif %}
   </main>
 </div>

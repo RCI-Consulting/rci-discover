@@ -8,7 +8,7 @@ rodar de novo não apaga nem altera dados.
 
 No log do Dokploy aparece algo como:
     [Banco] Conectado em mysql-interno:3306, banco "rcisearch", usuário "discover".
-    [Banco] 17 tabelas prontas.
+    [Banco] 18 tabelas prontas.
 
 Também dá para rodar à mão, dentro do container:
     python banco.py
@@ -109,7 +109,7 @@ def _etapas():
         (["usuarios"], com_conexao(usuarios._garantir_tabela)),
         (["jobs_indexacao"], jobs.criar_tabela),
         (["auditoria_buscas"], com_conexao(auditoria._garantir_tabela)),
-        (["projetos", "projeto_indices"], com_conexao(projetos._garantir_tabelas)),
+        (["projetos", "projeto_indices", "projeto_usuarios"], com_conexao(projetos._garantir_tabelas)),
         (["dicionario_termos"], com_conexao(dicionario._garantir_tabela)),
         (["destaques"], com_conexao(destaques._garantir_tabela)),
         (["fontes", "fonte_itens", "fonte_execucoes"], com_conexao(fontes._garantir_tabelas)),

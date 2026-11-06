@@ -135,6 +135,12 @@ def obter(usuario_id):
         return cur.fetchone()
 
 
+def obter_por_email(email):
+    with _conectar() as con, con.cursor() as cur:
+        cur.execute(f"{_COLUNAS} WHERE email = %s", (normalizar_email(email),))
+        return cur.fetchone()
+
+
 def _admins_ativos(cur, exceto=None):
     cur.execute("SELECT COUNT(*) AS n FROM usuarios WHERE papel = 'admin' AND ativo = 1 AND id <> %s", (exceto or 0,))
     return cur.fetchone()["n"]

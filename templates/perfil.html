@@ -37,6 +37,22 @@
       <div class="card-resumo"><strong>{{ total_buscas }}</strong><span>busca(s) salva(s) · {{ buscas_com_alerta }} com alerta</span></div>
     </div>
 
+    <section class="perfil-secao" aria-labelledby="titulo-projetos">
+      <div class="perfil-secao-topo">
+        <h2 id="titulo-projetos">{{ 'Meus projetos' if proprio else 'Projetos com acesso' }}</h2>
+        {% if not proprio %}<a href="/admin/usuarios/{{ perfil.id }}">Mudar projetos &rarr;</a>{% endif %}
+      </div>
+      {% if perfil.papel == 'admin' %}
+        <p class="hint">Administradores acessam todos os projetos.</p>
+      {% elif projetos_acesso %}
+        <p class="lista-projetos-perfil">
+          {% for p in projetos_acesso %}{% if proprio %}<a class="tag-indice" href="/p/{{ p.slug }}">{{ p.nome }}</a>{% else %}<span class="tag-indice">{{ p.nome }}</span>{% endif %} {% endfor %}
+        </p>
+      {% else %}
+        <p class="hint">{{ 'Você ainda não tem acesso a nenhum projeto. Peça ao administrador para incluir você.' if proprio else 'Nenhum projeto: esta pessoa não vê documento nenhum.' }}</p>
+      {% endif %}
+    </section>
+
     <section class="perfil-secao" aria-labelledby="titulo-pastas">
       <div class="perfil-secao-topo">
         <h2 id="titulo-pastas">{{ 'Minhas pastas' if proprio else 'Pastas' }}{% if proprio and total_pastas > pastas|length %} <span class="hint">· as {{ pastas|length }} mais recentes</span>{% endif %}</h2>

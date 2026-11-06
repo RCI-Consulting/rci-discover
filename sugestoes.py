@@ -43,8 +43,10 @@ def _nomes_de_documentos(cliente, alvo, prefixo, limite=4):
     return itens
 
 
-def autocompletar(cliente, alvo, prefixo, slug=None):
-    """Lista de sugestões (dicts com tipo, texto e, nos documentos, url/indice)."""
+def autocompletar(cliente, alvo, prefixo, slug=None, incluir_populares=True):
+    """Lista de sugestões (dicts com tipo, texto e, nos documentos, url/indice).
+    `incluir_populares=False` tira as buscas de outras pessoas (a busca geral de
+    quem só acessa alguns projetos: as buscas populares viriam de todos)."""
     prefixo = (prefixo or "").strip()[:MAX_PREFIXO]
     if len(prefixo) < MIN_CARACTERES:
         return []
@@ -55,10 +57,11 @@ def autocompletar(cliente, alvo, prefixo, slug=None):
     except Exception:
         pass
     try:
-        itens += [
-            {"tipo": "consulta", "texto": t}
-            for t in auditoria.termos_populares(prefixo, slug, config.SUGESTOES_MIN_BUSCAS, limite=4)
-        ]
+        if incluir_populares:
+            itens += [
+                {"tipo": "consulta", "texto": t}
+                for t in auditoria.termos_populares(prefixo, slug, config.SUGESTOES_MIN_BUSCAS, limite=4)
+            ]
     except Exception:
         pass
     if alvo:

@@ -101,11 +101,54 @@ def _listar_indices():
     return resultado
 
 
+# ---- Quem vê o quê -----------------------------------------------------------
+# Administradores veem todos os índices. Os demais, só os índices dos projetos
+# em que o admin os incluiu (projetos.projeto_usuarios). Toda leitura de
+# documento (busca, preview, download, autocomplete, pastas, destaques) passa
+# por aqui. Se o banco estiver fora, quem não é admin não vê nada.
+
+def _indices_permitidos():
+    """None = todos (admin); senão o conjunto de índices permitidos."""
+    if acesso.eh_admin():
+        return None
+    if "indices_permitidos" not in g:
+        try:
+            g.indices_permitidos = projetos.indices_do_usuario(session["usuario"]["id"])
+        except Exception as e:
+            print(f"[Acesso] Não consegui ler os projetos do usuário: {e}")
+            g.indices_permitidos = set()
+    return g.indices_permitidos
+
+
+def _pode_ver_indice(indice):
+    permitidos = _indices_permitidos()
+    return permitidos is None or indice in permitidos
+
+
+def _alvo_geral():
+    """Índices da busca geral: todos (admin) ou os dos projetos do usuário.
+    Vazio = o usuário não tem acesso a nada."""
+    permitidos = _indices_permitidos()
+    if permitidos is None:
+        return indices.padrao_busca()
+    return ",".join(sorted(i for i in permitidos if indices.eh_gerenciado(i)))
+
+
+def _pode_ver_projeto(projeto):
+    if acesso.eh_admin():
+        return True
+    try:
+        return projeto["id"] in projetos.ids_do_usuario(session["usuario"]["id"])
+    except Exception:
+        return False
+
+
 def _documento(indice, doc_id):
-    """Busca um documento num índice gerenciado. Retorna (indice, doc) ou
-    (None, None). O índice vem da URL, então nunca confiamos nele sem checar."""
+    """Busca um documento num índice gerenciado que o usuário pode ver.
+    Retorna (indice, doc) ou (None, None). O índice vem da URL, então nunca
+    confiamos nele sem checar."""
     indice = indice or config.INDEX_NAME
-    if not indices.eh_gerenciado(indice):
+    if not indices.eh_gerenciado(indice) or not _pode_ver_indice(indice):
         return None, None
     return indice, cliente.get(indice, doc_id)
 
@@ -301,6 +344,9 @@ def _tela_usuarios(erro=None, sucesso=None, senha_nova=None, status=200):
     lista = []
     try:
         lista = [_usuario_para_tela(u) for u in usuarios.listar()]
+        qtd = projetos.projetos_por_usuario()
+        for u in lista:
+            u["qtd_projetos"] = qtd.get(u["id"], 0)
     except Exception as e:
         erro = erro or f"Banco de dados de usuários indisponível: {e}"
     if not sucesso:
@@ -314,15 +360,33 @@ def admin_usuarios():
     return _tela_usuarios()
 
 
+def _projetos_para_escolher():
+    try:
+        return projetos.listar(), None
+    except Exception as e:
+        return [], f"Não consegui listar os projetos: {e}"
+
+
+def _ids_do_formulario(campo):
+    ids = set()
+    for valor in request.form.getlist(campo):
+        if valor.isdigit():
+            ids.add(int(valor))
+    return ids
+
+
 @app.route("/admin/usuarios/novo", methods=["GET", "POST"])
 def admin_usuario_novo():
     dados = {"email": "", "nome": "", "papel": "usuario"}
-    erro = None
+    disponiveis, erro = _projetos_para_escolher()
+    marcados = set()
     if request.method == "POST":
         dados = {k: request.form.get(k, "").strip() for k in dados}
+        marcados = _ids_do_formulario("projeto")
         senha = usuarios.senha_temporaria()
         try:
-            usuarios.criar(dados["email"], dados["nome"], dados["papel"], senha, trocar_senha=True)
+            novo_id = usuarios.criar(dados["email"], dados["nome"], dados["papel"], senha, trocar_senha=True)
+            projetos.definir_projetos_do_usuario(novo_id, marcados)
         except ValueError as e:
             erro = str(e)
         except Exception as e:
@@ -331,7 +395,7 @@ def admin_usuario_novo():
             return _tela_usuarios(sucesso=f"Usuário {usuarios.normalizar_email(dados['email'])} criado.",
                                   senha_nova={"email": usuarios.normalizar_email(dados["email"]), "senha": senha})
     return render_template("usuario_form.html", usuario=None, dados=dados, erro=erro, papeis=usuarios.PAPEIS,
-                           limite_nome=usuarios.LIMITE_NOME)
+                           limite_nome=usuarios.LIMITE_NOME, disponiveis=disponiveis, marcados=marcados)
 
 
 @app.route("/admin/usuarios/<int:usuario_id>", methods=["GET", "POST"])
@@ -345,7 +409,11 @@ def admin_usuario_editar(usuario_id):
 
     eu = session["usuario"]["id"] == usuario_id
     dados = {"nome": usuario["nome"], "papel": usuario["papel"], "ativo": bool(usuario["ativo"])}
-    erro = None
+    disponiveis, erro = _projetos_para_escolher()
+    try:
+        marcados = projetos.ids_do_usuario(usuario_id)
+    except Exception as e:
+        marcados, erro = set(), erro or f"Não consegui ler os projetos do usuário: {e}"
     if request.method == "POST":
         if request.form.get("acao") == "senha":
             senha = usuarios.senha_temporaria()
@@ -359,10 +427,12 @@ def admin_usuario_editar(usuario_id):
         else:
             dados = {"nome": request.form.get("nome", ""), "papel": request.form.get("papel", ""),
                      "ativo": request.form.get("ativo") == "1"}
+            marcados = _ids_do_formulario("projeto")
             try:
                 if eu and (dados["papel"] != "admin" or not dados["ativo"]):
                     raise ValueError("Você não pode tirar o seu próprio acesso de administrador nem se desativar.")
                 usuarios.atualizar(usuario_id, dados["nome"], dados["papel"], dados["ativo"])
+                projetos.definir_projetos_do_usuario(usuario_id, marcados)
             except ValueError as e:
                 erro = str(e)
             except Exception as e:
@@ -370,7 +440,8 @@ def admin_usuario_editar(usuario_id):
             else:
                 return redirect("/admin/usuarios?ok=salvo")
     return render_template("usuario_form.html", usuario=_usuario_para_tela(usuario), dados=dados, erro=erro,
-                           papeis=usuarios.PAPEIS, limite_nome=usuarios.LIMITE_NOME, eu=eu)
+                           papeis=usuarios.PAPEIS, limite_nome=usuarios.LIMITE_NOME, eu=eu,
+                           disponiveis=disponiveis, marcados=marcados)
 
 
 # ---- Perfil ------------------------------------------------------------------
@@ -401,8 +472,14 @@ def _tela_perfil(usuario, proprio):
         buscas = sorted(buscas_salvas.listar(email), key=lambda b: b["criado_em"], reverse=True)
     except Exception as e:
         erro = erro or f"Banco de dados das buscas salvas indisponível: {e}"
+    meus_projetos = []
+    if usuario["papel"] != "admin":
+        try:
+            meus_projetos = projetos.listar(usuario["id"])
+        except Exception as e:
+            erro = erro or f"Banco de dados dos projetos indisponível: {e}"
     return render_template(
-        "perfil.html", perfil=_usuario_para_tela(usuario), proprio=proprio, erro=erro,
+        "perfil.html", perfil=_usuario_para_tela(usuario), proprio=proprio, erro=erro, projetos_acesso=meus_projetos,
         pastas=minhas if not proprio else minhas[:RESUMO_PASTAS], total_pastas=len(minhas),
         pastas_publicas=sum(1 for p in minhas if p["publica"]),
         buscas=buscas if not proprio else buscas[:RESUMO_BUSCAS], total_buscas=len(buscas),
@@ -485,7 +562,8 @@ def _destaques_da_busca(q, projeto):
     """Documentos destacados pelo administrador para essa consulta (bloco
     acima dos resultados). Na busca de um projeto, só os índices dele.
     Documento que não existe mais no índice é ignorado."""
-    permitido = set(projeto["indices"]).__contains__ if projeto else indices.eh_gerenciado
+    no_alvo = set(projeto["indices"]).__contains__ if projeto else indices.eh_gerenciado
+    permitido = lambda indice: no_alvo(indice) and _pode_ver_indice(indice)
     try:
         entradas = destaques.casam(q, permitido)
     except Exception:
@@ -572,7 +650,7 @@ def _pesquisar(q, alvo, projeto=None, listar_tudo=False):
             lista_temas = temas.consultar(cliente, alvo, body["query"], post_filter, q, temas_ativos, total)
             if q and total <= 3:
                 correcao = sugestoes.correcao(cliente, alvo, q)
-            if q and total == 0:
+            if q and total == 0 and (projeto or acesso.eh_admin()):
                 populares = sugestoes.populares(slug)
             if q and pagina == 1:
                 lista_destaques = _destaques_da_busca(q, projeto)
@@ -632,6 +710,7 @@ def _tela_busca(q, alvo, projeto=None):
     listar_tudo = not q and "q" in request.args
     return render_template(
         "index.html", q=q, projeto=projeto, acao=f"/p/{projeto['slug']}" if projeto else "/busca",
+        sem_acesso=not projeto and not alvo,
         parametros_salvar=buscas_salvas.parametros_da_tela(request.args),
         frequencias_alerta=buscas_salvas.FREQUENCIAS,
         **_pesquisar(q, alvo, projeto, listar_tudo),
@@ -643,17 +722,20 @@ def sugestoes_autocomplete():
     """Sugestões para a caixa de busca enquanto o usuário digita (JSON)."""
     prefixo = request.args.get("q", "")
     slug = request.args.get("p", "").strip()
-    alvo = indices.padrao_busca()
+    alvo = _alvo_geral()
     projeto_slug = None
     if slug:
         try:
             projeto = projetos.obter_por_slug(slug)
         except Exception:
             projeto = None
-        if projeto:
+        if projeto and _pode_ver_projeto(projeto):
             alvo = ",".join(projeto["indices"])
             projeto_slug = projeto["slug"]
-    resposta = jsonify({"itens": sugestoes.autocompletar(cliente, alvo, prefixo, projeto_slug)})
+    # na busca geral de quem só vê alguns projetos, as buscas populares de
+    # outras pessoas poderiam revelar assuntos de projetos alheios
+    populares = projeto_slug is not None or acesso.eh_admin()
+    resposta = jsonify({"itens": sugestoes.autocompletar(cliente, alvo, prefixo, projeto_slug, populares)})
     resposta.headers["Cache-Control"] = "no-store"
     return resposta
 
@@ -666,7 +748,7 @@ def home():
         return redirect(f"/busca?{request.query_string.decode('utf-8', 'replace')}")
     qtd_projetos = None  # None = não deu para saber (MySQL fora): o card some com o número
     try:
-        qtd_projetos = len(projetos.listar())
+        qtd_projetos = len(projetos.listar(None if acesso.eh_admin() else session["usuario"]["id"]))
     except Exception:
         pass
     return render_template("home.html", qtd_projetos=qtd_projetos)
@@ -674,7 +756,7 @@ def home():
 
 @app.route("/busca")
 def index():
-    return _tela_busca(request.args.get("q", "").strip(), indices.padrao_busca())
+    return _tela_busca(request.args.get("q", "").strip(), _alvo_geral())
 
 
 @app.route("/projetos")
@@ -682,7 +764,7 @@ def projetos_pagina():
     erro = None
     lista = []
     try:
-        lista = projetos.listar()
+        lista = projetos.listar(None if acesso.eh_admin() else session["usuario"]["id"])
         for p in lista:
             p["qtd_indices"] = len(p["indices"])
     except Exception as e:
@@ -699,8 +781,8 @@ def projeto_busca(slug):
             "erro.html", titulo="Projetos indisponíveis",
             mensagem=f"Não consegui carregar o projeto agora ({e}). A busca geral continua funcionando.",
         ), 503
-    if not projeto:
-        abort(404, "Projeto não encontrado.")
+    if not projeto or not _pode_ver_projeto(projeto):
+        abort(404, "Projeto não encontrado.")  # sem acesso: nem confirma que o projeto existe
     alvo = ",".join(projeto["indices"])
     return _tela_busca(request.args.get("q", "").strip(), alvo, projeto)
 
@@ -919,19 +1001,27 @@ def admin_projetos():
 def _formulario_projeto(projeto):
     """Cria (projeto=None) ou edita um projeto. Mesma tela para os dois."""
     disponiveis, erro = _indices_para_escolher()
+    try:
+        # só quem não é admin precisa de acesso por projeto (admins veem tudo)
+        pessoas = [u for u in usuarios.listar() if u["papel"] != "admin"]
+    except Exception as e:
+        pessoas, erro = [], erro or f"Não consegui listar os usuários: {e}"
     nome = projeto["nome"] if projeto else ""
     descricao = (projeto["descricao"] or "") if projeto else ""
     marcados = list(projeto["indices"]) if projeto else []
+    com_acesso = set(projeto["usuarios"]) if projeto else set()
 
     if request.method == "POST":
         nome = request.form.get("nome", "")
         descricao = request.form.get("descricao", "")
         marcados = request.form.getlist("indice")
+        # só ids de usuários que existem e não são admin
+        com_acesso = _ids_do_formulario("usuario") & {u["id"] for u in pessoas}
         try:
             if projeto:
-                projetos.atualizar(projeto["id"], nome, descricao, marcados)
+                projetos.atualizar(projeto["id"], nome, descricao, marcados, com_acesso)
                 return redirect("/admin/projetos?ok=salvo")
-            projetos.criar(nome, descricao, marcados)
+            projetos.criar(nome, descricao, marcados, com_acesso)
             return redirect("/admin/projetos?ok=criado")
         except ValueError as e:
             erro = str(e)
@@ -940,7 +1030,7 @@ def _formulario_projeto(projeto):
 
     return render_template(
         "projeto_form.html", projeto=projeto, nome=nome, descricao=descricao,
-        marcados=marcados, disponiveis=disponiveis, erro=erro,
+        marcados=marcados, disponiveis=disponiveis, erro=erro, pessoas=pessoas, com_acesso=com_acesso,
         limite_nome=projetos.LIMITE_NOME, limite_descricao=projetos.LIMITE_DESCRICAO,
     )
 
@@ -1827,6 +1917,10 @@ def pasta_ver(pasta_id):
         lista = pastas.itens(pasta_id)
     except Exception as e:
         return _pastas_indisponivel(e)
+    # numa pasta pública pode haver documentos de projetos a que esta pessoa não tem acesso
+    visiveis = [i for i in lista if _pode_ver_indice(i["indice"])]
+    ocultos = len(lista) - len(visiveis)
+    lista = visiveis
     try:
         vivos = cliente.existentes([(i["indice"], i["doc_id"]) for i in lista])
     except Exception:
@@ -1839,7 +1933,7 @@ def pasta_ver(pasta_id):
     mensagens = {"criada": "Pasta criada. Para guardar documentos, use \"Salvar na pasta\" na busca ou no preview.",
                  "salva": "Pasta salva.", "removido": "Documento tirado da pasta."}
     return render_template(
-        "pasta.html", pasta=pasta, itens=lista, editavel=editavel, erro=mensagem_erro,
+        "pasta.html", pasta=pasta, itens=lista, ocultos=ocultos, editavel=editavel, erro=mensagem_erro,
         sucesso=mensagens.get(request.args.get("ok")), limite_nome=pastas.LIMITE_NOME,
         limite_descricao=pastas.LIMITE_DESCRICAO, limite_nota=pastas.LIMITE_NOTA,
     )

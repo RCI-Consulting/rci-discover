@@ -825,3 +825,51 @@ Contra um MariaDB descartável:
   - `pastas.py` e `buscas_salvas.py` (`todas()`);
   - `templates/_topbar.html`, `_admin_abas.html`, `usuarios_admin.html`, `pastas.html`, `buscas_salvas.html`, `pasta.html`, `busca_salva_form.html`, `minha_senha.html`;
   - `static/style.css`.
+
+06/11/2026 (4)
+
+# Acesso por projeto
+- **Regra:**
+  - **administradores** veem todos os projetos e índices, como antes;
+  - **os demais usuários** só veem os projetos em que um admin os incluiu, e só pesquisam nos índices desses projetos;
+  - **quem não está em nenhum projeto** não vê documento nenhum.
+- **Onde o admin define** (as duas telas mexem no mesmo cadastro, tabela `projeto_usuarios`):
+  - **no projeto** (Administração → Projetos → editar): "Quem pode acessar", com a lista de usuários comuns. Admins não aparecem, porque já veem tudo;
+  - **no usuário** (Administração → Usuários → editar ou novo): "Projetos", com a lista de projetos.
+- **Listas:** a lista de usuários ganhou a coluna **Projetos** ("todos" para admin, "nenhum" em vermelho para quem ainda não tem acesso). A de projetos ganhou a coluna **Usuários**.
+- **Perfil:** mostra os projetos de cada pessoa.
+- **Vale na hora:** a regra é conferida a cada página, então incluir ou tirar alguém tem efeito na próxima página que ela abrir.
+
+## O que a regra cobre (usuário comum)
+- **Busca geral** (`/busca`): pesquisa só nos índices dos projetos da pessoa. A busca vazia também. Sem projetos, não consulta nada e mostra um aviso.
+- **Projetos:** a lista mostra só os projetos da pessoa. Abrir `/p/<projeto>` de outro projeto responde 404, sem confirmar que ele existe.
+- **Preview, download e arquivo original:** 404 para documentos de índices fora dos projetos da pessoa, inclusive o índice padrão `documentos`, se ele não estiver em nenhum projeto dela.
+- **Autocomplete:** nomes de documentos só dos índices permitidos. Na busca geral não sugere as buscas de outras pessoas, que poderiam revelar assuntos de outros projetos. Dentro de um projeto, sugere as buscas feitas naquele projeto. "Buscas populares" quando nada é encontrado segue a mesma regra.
+- **Destaques:** só os de índices permitidos.
+- **"Você quis dizer":** a correção usa só o vocabulário dos índices permitidos.
+- **Pastas:** numa pasta pública com documentos de outros projetos, esses documentos não aparecem, e a tela avisa quantos estão ocultos. "Salvar na pasta" recusa documento sem acesso. O admin continua vendo tudo.
+- **Alertas de buscas salvas (e-mail):** usam a mesma regra do dono da busca. Se o dono estiver desativado, não existir ou não tiver mais acesso ao projeto da busca, o alerta não manda documentos. **Buscas salvas sem dono** (criadas antes do login) não mandam mais alertas: atribua um dono (SQL na seção do login) para reativá-las.
+- **Banco fora do ar:** quem não é admin não vê nada até o banco voltar. A regra falha fechada.
+
+## Migração
+- **Tabela nova:** `projeto_usuarios` é criada sozinha no deploy (o log passa a mostrar `18 tabelas prontas`).
+- **Usuários comuns já cadastrados** começam **sem acesso a nada**. Inclua cada um nos projetos dele depois do deploy.
+
+## Como foi testado
+Contra um MariaDB descartável, com o OpenSearch simulado, 28 verificações:
+- **Projetos e busca:** a usuária vê só o projeto dela; o outro projeto dá 404; a busca geral e a vazia consultam só os índices dela; o usuário sem projeto não consulta nada e vê o aviso.
+- **Documentos:** preview, download e arquivo de outro projeto, e do índice padrão, dão 404.
+- **Autocomplete:** só nos índices permitidos, mesmo pedindo outro projeto.
+- **Pastas:** não salva documento sem acesso; a pasta pública esconde o documento de outro projeto e avisa; o admin vê tudo e busca em tudo.
+- **Cadastro:** pelo projeto (o admin marcado é ignorado), pelo usuário e na criação de um usuário novo, com efeito na hora.
+- **Alertas:** respeitam os projetos do dono; sem dono ou com dono inexistente, nada.
+- **Telas:** colunas novas nas listas, perfil e home do usuário comum.
+- **Regressão:** os testes de perfil (20) e de busca vazia (11) continuam passando.
+
+## Arquivos
+- Alterados:
+  - `projetos.py` (tabela `projeto_usuarios`, `listar(usuario_id)`, `ids_do_usuario`, `indices_do_usuario`, `definir_projetos_do_usuario`, `projetos_por_usuario`);
+  - `web_app.py` (`_indices_permitidos`, `_alvo_geral`, `_pode_ver_projeto`, `_documento` e as telas);
+  - `buscas_salvas.py` (`_alvo` com a regra do dono), `usuarios.py` (`obter_por_email`), `sugestoes.py`, `banco.py`;
+  - `templates/projeto_form.html`, `projetos_admin.html`, `projetos.html`, `usuario_form.html`, `usuarios_admin.html`, `perfil.html`, `index.html`, `home.html`, `pasta.html`;
+  - `static/style.css`.
