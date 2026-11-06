@@ -14,6 +14,7 @@ OpenSearch (evita expor usuário/senha do cluster no front-end).
 
 import os
 import secrets
+import threading
 from html import escape as escapar_html
 from datetime import datetime, timedelta, timezone
 from urllib.parse import quote, urlencode, urlsplit
@@ -1901,8 +1902,27 @@ def _deve_iniciar_workers():
     return True
 
 
+def _ajustar_replicas(tentativas=24, intervalo=5):
+    """Ao subir, alinha as réplicas dos índices existentes com INDEX_REPLICAS
+    (índice com réplica sem nó para ela fica amarelo). Tenta por ~2 min, porque
+    no deploy o OpenSearch pode subir depois do app."""
+    import time
+    for _ in range(tentativas):
+        try:
+            mudados = cliente.ajustar_replicas(indices.padrao_listagem(), config.INDEX_REPLICAS)
+        except Exception as e:
+            ultimo = e
+            time.sleep(intervalo)
+            continue
+        if mudados:
+            print(f"[Índices] Réplicas ajustadas para {config.INDEX_REPLICAS}: {', '.join(mudados)}")
+        return
+    print(f"[Índices] Não consegui ajustar as réplicas (OpenSearch indisponível): {ultimo}")
+
+
 if _deve_iniciar_workers():
     banco.iniciar()      # cria banco/tabelas/1º admin no deploy, em segundo plano (log [Banco])
+    threading.Thread(target=_ajustar_replicas, name="ajustar-replicas", daemon=True).start()
     worker.iniciar()
     crawler.iniciar()
     notificacoes.iniciar()

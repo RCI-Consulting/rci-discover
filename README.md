@@ -703,3 +703,64 @@ A primeira passada numa pasta grande manda **tudo** para o Docling, que leva min
   - `config.py`;
   - `templates/base.html`, `_topbar.html`, `_admin_abas.html`;
   - `static/style.css`.
+
+05/11/2026 (2)
+
+# Banco preparado no deploy
+- **Por quê:** cada tabela só era criada na primeira vez que a tela correspondente era usada. Num banco novo, como o da VM de produção, as tabelas não existiam e um erro de conexão só aparecia ao tentar usar algo.
+- **Agora (`banco.py`):** assim que o app sobe, em segundo plano:
+  1. espera o MySQL ficar disponível, por até 90 s, porque no deploy ele pode subir depois do app;
+  2. cria o banco (`MYSQL_DATABASE`), se ele não existir e o usuário tiver permissão;
+  3. cria as **17 tabelas** com `CREATE TABLE IF NOT EXISTS`, então rodar de novo não apaga nem altera dados;
+  4. cria o primeiro administrador (`ADMIN_EMAIL` / `ADMIN_SENHA`), se ainda não houver usuários.
+- **Definições das tabelas:** continuam cada uma no seu módulo (`usuarios.py`, `jobs.py`, `pastas.py`…). O `banco.py` só chama as funções que já existiam, então não há duas definições da mesma tabela.
+- **Log (aba Logs do Dokploy), com tudo certo:**
+  ```
+  [Banco] Conectado em <host>:3306, banco "rcisearch", usuário "<usuário>".
+  [Banco] 17 tabelas prontas.
+  ```
+- **Log com problema:** o app diz host, porta, banco e usuário usados (nunca a senha) e o erro do MySQL. Ele sobe mesmo assim, porque a busca não depende do banco, e o login mostra que o banco está indisponível.
+- **Rodar à mão,** no terminal do container: `python banco.py`. Termina com código 1 se algo falhou.
+- **Permissões do usuário do MySQL no banco:**
+  - SELECT, INSERT, UPDATE, DELETE;
+  - CREATE, ALTER, INDEX, REFERENCES (`projeto_indices` tem chave estrangeira);
+  - para o próprio app criar o banco, CREATE nesse nome de banco.
+- **Logs na hora:** o `Dockerfile` ganhou `ENV PYTHONUNBUFFERED=1`. Sem isso, as mensagens do app (`[Banco]`, `[Login]`, `[Fila]`…) ficavam presas num buffer e não apareciam no Dokploy.
+
+## Como foi testado
+Contra um MariaDB descartável:
+- **Banco inexistente:** cria o banco, as 17 tabelas e o admin inicial (com troca de senha obrigatória).
+- **Rodar de novo:** nada muda.
+- **Senha errada:** mensagem com `Access denied` e o que conferir.
+- **Host inalcançável:** desiste no tempo limite com a mensagem certa.
+
+## Arquivos
+- Novo: `banco.py`.
+- Alterados: `web_app.py` (chama `banco.iniciar()` ao subir) e `Dockerfile`.
+
+06/11/2026
+
+# Réplicas dos índices (saúde amarela) e tela de login em português
+## Réplicas
+- **Sintoma:** todo índice novo aparecia com saúde **amarela** na tela de Índices.
+- **Causa:** o app criava os índices sem dizer quantas réplicas, e o OpenSearch usa 1 como padrão. Com um nó só, a réplica não tem onde ficar. Os dados estão inteiros e a busca funciona, mas o índice fica amarelo.
+- **Agora:**
+  - nova variável `INDEX_REPLICAS`, com padrão **0**, para nó único. Se o cluster ganhar mais nós, use `1`;
+  - índices novos já nascem com esse número de réplicas (`indices.MAPEAMENTO`);
+  - **ao subir**, o app ajusta os índices existentes (`documentos` e `rci-*`) que estão com outro valor e registra no log: `[Índices] Réplicas ajustadas para 0: …`. Tenta por cerca de 2 minutos, porque o OpenSearch pode subir depois do app. Não mexe em dados e só toca nos índices gerenciados pelo app.
+- **Para conferir no Dev Tools:** `GET _cat/indices/documentos,rci-*?v&h=index,health,rep`. Todos devem estar `green`, com `rep` 0.
+- **Saúde geral do cluster** (`GET _cluster/health`): se continuar amarela, a causa são índices internos do OpenSearch ou do Dashboards, não os do app. Ver com `GET _cat/indices?v&health=yellow`.
+
+## Tela de login em português
+- **Subtítulo:** "Plataforma soberana de descoberta", sem o "AI".
+- **Frases:**
+  - "Investigue dados não estruturados.";
+  - "Descubra conexões ocultas.";
+  - "Mantenha sua inteligência soberana."
+
+## Como foi testado
+- **Réplicas:** com um cliente OpenSearch simulado, só os índices gerenciados com réplicas diferentes são ajustados (os já certos e os de outros nomes não são tocados). O mapeamento de índices novos sai com `number_of_replicas: 0`.
+- **Não testado contra o OpenSearch real:** conferir no primeiro deploy a linha `[Índices]` no log e a saúde verde na tela de Índices.
+
+## Arquivos
+- Alterados: `config.py` (`INDEX_REPLICAS`), `indices.py`, `opensearch_client.py` (`ajustar_replicas`), `web_app.py` (ajuste ao subir), `templates/login.html`.

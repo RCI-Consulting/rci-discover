@@ -56,7 +56,7 @@ SUBCAMPO_PT = {"type": "text", "analyzer": ANALISADOR_PT}
 CAMPOS_COM_PT = ("nome", "titulo", "conteudo")
 
 MAPEAMENTO = {
-    "settings": {"index": {"number_of_shards": 1, **ANALISE_PT}},
+    "settings": {"index": {"number_of_shards": 1, "number_of_replicas": config.INDEX_REPLICAS, **ANALISE_PT}},
     "mappings": {
         "properties": {
             **CAMPOS_NOVOS,

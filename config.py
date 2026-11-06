@@ -59,6 +59,12 @@ EXTENSOES_VALIDAS = {".pdf", ".docx", ".doc", ".txt", ".odt", ".rtf", ".jpg", ".
 # que a interface enxergue ou apague índices internos do OpenSearch.
 INDEX_PREFIX = os.getenv("INDEX_PREFIX", "rci-")
 
+# Réplicas de cada índice. Com um nó só do OpenSearch, a réplica não tem onde
+# ficar e o índice aparece com saúde amarela: por isso o padrão é 0. Se o
+# cluster ganhar mais nós, use 1 (cada documento passa a existir em dois nós).
+# O app aplica esse valor aos índices novos e ajusta os existentes ao subir.
+INDEX_REPLICAS = int(os.getenv("INDEX_REPLICAS", "0"))
+
 # Tempo máximo (segundos) esperando o Docling converter UM documento. Em CPU
 # sem GPU um PDF de ~17 páginas com fotos passa de 5 min.
 DOCLING_TIMEOUT = int(os.getenv("DOCLING_TIMEOUT", "1800"))

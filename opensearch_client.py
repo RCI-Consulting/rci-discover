@@ -190,6 +190,22 @@ class OpenSearchClient:
     def criar_indice(self, index, body):
         return self.client.indices.create(index=index, body=body)
 
+    def ajustar_replicas(self, padrao, replicas):
+        """Põe `replicas` réplicas nos índices de `padrao` que estão com outro
+        valor (ex.: criados antes do INDEX_REPLICAS, com o padrão 1 do
+        OpenSearch). Devolve os nomes que mudaram. Não mexe em dados."""
+        atuais = self.client.indices.get_settings(
+            index=padrao, name="index.number_of_replicas", allow_no_indices=True, expand_wildcards="open",
+        )
+        mudar = [
+            nome for nome, dados in atuais.items()
+            if indices.eh_gerenciado(nome)
+            and str(dados.get("settings", {}).get("index", {}).get("number_of_replicas")) != str(replicas)
+        ]
+        if mudar:
+            self.client.indices.put_settings(index=",".join(mudar), body={"index": {"number_of_replicas": replicas}})
+        return mudar
+
     def apagar_indice(self, index):
         return self.client.indices.delete(index=index)
 
