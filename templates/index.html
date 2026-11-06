@@ -52,7 +52,7 @@
               {% for i in f.itens %}
                 <label class="faceta-item">
                   <input type="{{ 'radio' if f.unico else 'checkbox' }}" name="{{ f.campo }}" value="{{ i.valor }}"
-                         {{ 'checked' if i.marcado }} onchange="this.form.submit()">
+                         {{ 'checked' if i.marcado }} data-autoenviar>
                   <span class="faceta-rotulo">{{ i.rotulo }}</span>
                   {% if i.contagem is not none %}<span class="faceta-n">{{ i.contagem }}</span>{% endif %}
                 </label>
@@ -68,7 +68,7 @@
     <div class="resultados">
     {% if projeto %}<div class="projeto-linha">Projeto <strong>{{ projeto.nome }}</strong> · {{ projeto.indices|length }} índice(s)</div>{% endif %}
     {% if erro %}
-      <div class="alert alert-error">Erro ao consultar o OpenSearch: {{ erro }}</div>
+      <div class="alert alert-error">Erro ao consultar os documentos: {{ erro }}</div>
     {% endif %}
     {% if not erro %}
       <div class="results-meta">
@@ -169,13 +169,13 @@
           <select name="frequencia" id="frequencia-alerta">
             {% for f, rotulo in frequencias_alerta %}<option value="{{ f }}">{{ rotulo }}</option>{% endfor %}
           </select></label>
-        <label class="campo" id="campo-alerta-email" hidden><span>E-mail</span>
+        <label class="campo" id="campo-alerta-email" hidden><span>E-mail <span class="hint">(só o seu; vazio = o seu e-mail de login)</span></span>
           <input type="text" name="alerta_email" placeholder="voce@empresa.com.br"></label>
         <p class="hint">Guarda também os filtros, temas e a ordem desta tela.</p>
         <div class="acoes-form"><button type="submit" class="btn-prim">Salvar</button></div>
       </form>
     </dialog>
-    <script>
+    <script nonce="{{ csp_nonce }}">
     (function () {
       var d = document.getElementById("dialogo-salvar-busca");
       var botao = document.getElementById("abrir-salvar-busca");

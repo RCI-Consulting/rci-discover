@@ -71,6 +71,23 @@ def separar_emails(texto):
     return lista
 
 
+def dominio_permitido(email):
+    """Se o endereço pode receber e-mails do app (EMAIL_DOMINIOS_PERMITIDOS;
+    lista vazia = qualquer domínio)."""
+    if not config.EMAIL_DOMINIOS_PERMITIDOS:
+        return True
+    return (email or "").strip().lower().rsplit("@", 1)[-1] in config.EMAIL_DOMINIOS_PERMITIDOS
+
+
+def conferir_dominios(emails):
+    """Levanta ValueError se algum endereço estiver fora dos domínios permitidos."""
+    fora = [e for e in emails if not dominio_permitido(e)]
+    if fora:
+        permitidos = ", ".join("@" + d for d in config.EMAIL_DOMINIOS_PERMITIDOS)
+        raise ValueError(f"Endereço fora dos domínios permitidos ({permitidos}): {', '.join(fora)}")
+    return emails
+
+
 def configurado(conf=None):
     conf = conf or configuracoes.ler_todas()
     return bool(conf["smtp_host"] and conf["smtp_remetente"])
@@ -97,6 +114,13 @@ def enviar(destinatarios, assunto, html, origem, anexos=(), conf=None):
         raise RuntimeError("O servidor de e-mail ainda não foi configurado (Administração → E-mail).")
     if not destinatarios:
         raise RuntimeError("Nenhum destinatário.")
+    try:
+        # trava final: vale para relatórios, alertas e configurações gravadas
+        # antes da restrição existir
+        conferir_dominios(destinatarios)
+    except ValueError as e:
+        _registrar(origem, destinatarios, assunto, False, str(e))
+        raise RuntimeError(str(e))
 
     msg = EmailMessage()
     msg["Subject"] = assunto

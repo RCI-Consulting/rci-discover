@@ -158,7 +158,7 @@ def validar(nome, periodo_dias, frequencia, hora, destinatarios):
         raise ValueError("Escolha uma frequência válida.")
     if not 0 <= hora <= 23:
         raise ValueError("Escolha um horário entre 0h e 23h.")
-    emails = email_envio.separar_emails(destinatarios)
+    emails = email_envio.conferir_dominios(email_envio.separar_emails(destinatarios))
     if not emails:
         raise ValueError("Informe pelo menos um destinatário.")
     return nome, periodo_dias, frequencia, hora, ", ".join(emails)

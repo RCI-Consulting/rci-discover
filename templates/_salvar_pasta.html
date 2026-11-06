@@ -13,7 +13,7 @@
   <p class="aviso-pasta" id="aviso-pasta" role="status"></p>
   <p class="dialogo-rodape"><a href="/pastas">Ver minhas pastas</a></p>
 </dialog>
-<script>
+<script nonce="{{ csp_nonce }}">
 (function () {
   var d = document.getElementById("dialogo-pasta");
   if (!d || d.dataset.pronto) return;

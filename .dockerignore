@@ -1,0 +1,15 @@
+# Fora da imagem: segredos, documentos, ambiente local e histórico do Git.
+.env
+.env.*
+.git
+.gitignore
+.venv
+venv
+__pycache__
+*.pyc
+pdf/
+images/
+.claude/
+Claude outputs/
+deploy/
+README.md

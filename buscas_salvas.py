@@ -92,7 +92,14 @@ def link(busca, base=""):
     return f"{base.rstrip('/')}{caminho}?q={quote(busca['q'])}{extra}"
 
 
-def validar(nome, frequencia, alerta_email):
+def alerta_permitido(email, dono):
+    """O alerta traz títulos e nomes de documentos: só pode ir para o e-mail
+    de quem salvou a busca (e dentro dos domínios permitidos)."""
+    return bool(email and dono) and email.strip().lower() == dono.strip().lower() \
+        and email_envio.dominio_permitido(email)
+
+
+def validar(nome, frequencia, alerta_email, dono=None):
     nome = " ".join((nome or "").split())
     if not nome:
         raise ValueError("Dê um nome para a busca.")
@@ -103,8 +110,12 @@ def validar(nome, frequencia, alerta_email):
     emails = email_envio.separar_emails(alerta_email) if alerta_email else []
     if len(emails) > 1:
         raise ValueError("Informe um e-mail só para o alerta.")
+    if frequencia != "nenhuma" and not emails and dono and "@" in dono:
+        emails = [dono]  # campo vazio: o alerta vai para quem salvou
     if frequencia != "nenhuma" and not emails:
         raise ValueError("Informe o e-mail que recebe o alerta.")
+    if emails and not alerta_permitido(emails[0], dono):
+        raise ValueError(f"O alerta só pode ser enviado para o seu próprio e-mail ({dono}).")
     return nome, frequencia, (emails[0] if emails else None)
 
 
@@ -152,7 +163,7 @@ def criar(dono, nome, q, parametros, projeto, frequencia, alerta_email):
     q = " ".join((q or "").split())[:1000]
     if not q:
         raise ValueError("Não há busca para salvar.")
-    nome, frequencia, alerta_email = validar(nome, frequencia, alerta_email)
+    nome, frequencia, alerta_email = validar(nome, frequencia, alerta_email, dono)
     with _conectar() as con, con.cursor() as cur:
         cur.execute(
             "INSERT INTO buscas_salvas (dono, nome, q, parametros, projeto, alerta_email, frequencia, desde, proxima_em, criado_em)"
@@ -163,7 +174,7 @@ def criar(dono, nome, q, parametros, projeto, frequencia, alerta_email):
 
 
 def atualizar(busca_id, dono, nome, frequencia, alerta_email):
-    nome, frequencia, alerta_email = validar(nome, frequencia, alerta_email)
+    nome, frequencia, alerta_email = validar(nome, frequencia, alerta_email, dono)
     with _conectar() as con, con.cursor() as cur:
         cur.execute(
             # ligar o alerta agora não manda o que entrou enquanto ele estava desligado
@@ -263,6 +274,16 @@ def processar_alertas(cliente, conf):
     for busca in vencidas:
         inicio = _agora()
         avancar, status = True, "Nada novo"
+        if not alerta_permitido(busca["alerta_email"], busca.get("dono")):
+            # alerta criado antes da regra, para outro endereço: não envia
+            # (e só volta a enviar quando o dono corrigir o e-mail na tela)
+            status = "Bloqueado: o alerta só pode ir para o e-mail de quem salvou a busca"
+            with _conectar() as con, con.cursor() as cur:
+                cur.execute(
+                    "UPDATE buscas_salvas SET proxima_em = %s, ultimo_status = %s WHERE id = %s",
+                    (_proxima(busca["frequencia"], inicio + timedelta(minutes=1)), status, busca["id"]),
+                )
+            continue
         try:
             total, docs = documentos_novos(cliente, busca, busca["desde"])
             if total:

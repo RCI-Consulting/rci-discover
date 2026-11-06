@@ -873,3 +873,12 @@ Contra um MariaDB descartável, com o OpenSearch simulado, 28 verificações:
   - `buscas_salvas.py` (`_alvo` com a regra do dono), `usuarios.py` (`obter_por_email`), `sugestoes.py`, `banco.py`;
   - `templates/projeto_form.html`, `projetos_admin.html`, `projetos.html`, `usuario_form.html`, `usuarios_admin.html`, `perfil.html`, `index.html`, `home.html`, `pasta.html`;
   - `static/style.css`.
+
+# Segurança e LGPD, fase 1
+- **Logs sem conteúdo de documento:** `docling_service.py` registra só nome, tamanho e tempo da conversão (antes imprimia os 300 primeiros caracteres de cada documento no log do Dokploy).
+- **Preview sanitizado:** `utils.renderizar_markdown` passa o HTML por uma lista de permissões (`nh3`): links só `http(s)`/`mailto` (um `[x](javascript:...)` dentro do documento vira texto) e nenhuma `<img>` (uma imagem externa avisaria um site de fora de quem abriu o documento).
+- **Cabeçalhos de segurança** em todas as respostas (`cabecalhos_seguranca` em `web_app.py`): CSP com nonce nos scripts inline, `nosniff`, `X-Frame-Options`, `Referrer-Policy`, HSTS (em HTTPS) e `Cache-Control: no-store` nas páginas e arquivos. Por causa da CSP, **não use `onclick=`/`onchange=` nos templates**: use `data-confirmar="Texto?"` e `data-autoenviar` (tratados em `static/app.js`) e ponha `nonce="{{ csp_nonce }}"` em todo `<script>` inline.
+- **Erros internos só para admin:** `_detalhe(e)` registra a exceção no log e só mostra o texto técnico a administradores; os demais veem a mensagem genérica.
+- **E-mails só para dentro:** nova variável `EMAIL_DOMINIOS_PERMITIDOS` (ex.: `rciit.com`); com ela, relatórios, alertas e e-mail de teste recusam outros domínios. O alerta de busca salva só vai para o e-mail do próprio dono (campo vazio = o e-mail de login); alertas antigos para outros endereços ficam bloqueados até o dono corrigir.
+- **Build:** `.dockerignore` (sem `.env`, `.git`, `.venv`, `pdf/`), `python:3.12-slim` e versões fixas no `requirements.txt` (novo: `nh3`).
+- **Dashboards:** ver o aviso em `deploy/opensearch-compose.yml` — não publicar com domínio aberto.

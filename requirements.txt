@@ -1,6 +1,13 @@
-opensearch-py
-python-dotenv
-flask
-requests
-markdown
-pymysql[rsa]
+# Versões fixas: o deploy instala sempre o mesmo código (atualize de propósito,
+# testando antes). Mesmas versões do .venv de desenvolvimento.
+opensearch-py==3.2.0
+python-dotenv==1.2.3
+flask==3.1.3
+werkzeug==3.1.8
+jinja2==3.1.6
+requests==2.34.2
+markdown==3.11
+pymysql[rsa]==1.2.3
+cryptography==50.0.1
+# sanitiza o HTML do preview (utils.renderizar_markdown)
+nh3>=0.2.21,<0.4

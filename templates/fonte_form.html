@@ -140,12 +140,12 @@
           <input type="checkbox" name="remover_documentos" value="1">
           <span>Tirar do índice os documentos que vieram desta fonte <span class="hint">(os arquivos na pasta nunca são apagados)</span></span>
         </label>
-        <button type="submit" class="btn-perigo" onclick="return confirm('Apagar esta fonte?')">Apagar fonte</button>
+        <button type="submit" class="btn-perigo" data-confirmar="Apagar esta fonte?">Apagar fonte</button>
       </form>
     {% endif %}
   </main>
 </div>
-<script>
+<script nonce="{{ csp_nonce }}">
 (function () {
   var dialogo = document.getElementById("dialogo-indices");
   if (!dialogo) return;

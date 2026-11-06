@@ -64,7 +64,7 @@
 
     {% if destaque %}
       <form method="post" action="/admin/destaques/{{ destaque.id }}/apagar" class="apagar-termo">
-        <button type="submit" class="btn-perigo" onclick="return confirm('Apagar este destaque?')">Apagar destaque</button>
+        <button type="submit" class="btn-perigo" data-confirmar="Apagar este destaque?">Apagar destaque</button>
       </form>
     {% endif %}
   </main>

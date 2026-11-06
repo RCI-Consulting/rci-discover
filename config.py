@@ -95,6 +95,16 @@ PROXIES_CONFIAVEIS = int(os.getenv("PROXIES_CONFIAVEIS", "1"))
 # pessoa digitou). 1 = sugere qualquer busca que já achou algo.
 SUGESTOES_MIN_BUSCAS = int(os.getenv("SUGESTOES_MIN_BUSCAS", "2"))
 
+# Domínios de e-mail que podem receber mensagens do app (relatórios com a
+# auditoria, alertas do sistema, alertas de buscas salvas, e-mail de teste),
+# separados por vírgula: ex. "rciit.com,rci.com.br". Qualquer outro endereço é
+# recusado, para documentos e dados de colegas não saírem para fora da empresa.
+# Vazio = sem restrição de domínio; mesmo assim o alerta de uma busca salva só
+# vai para o e-mail do próprio dono.
+EMAIL_DOMINIOS_PERMITIDOS = [
+    d.strip().lower().lstrip("@") for d in os.getenv("EMAIL_DOMINIOS_PERMITIDOS", "").split(",") if d.strip()
+]
+
 # Fontes do crawler: pastas do servidor (separadas por vírgula) onde uma fonte
 # pode apontar, com as subpastas. Monte os compartilhamentos de rede dentro
 # delas no Dokploy (ex.: /mnt/fontes/juridico).

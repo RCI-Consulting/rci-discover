@@ -25,13 +25,21 @@ services:
     networks:
       - dokploy-network          # o app alcança em https://opensearch:9200; sem "ports" publicadas
 
+  # ATENÇÃO (LGPD / confidencialidade): o Dashboards lê TODOS os índices e ignora
+  # o controle de acesso por projeto do app. NÃO publique domínio público para ele.
+  # Use uma destas opções no Dokploy:
+  #   1. sem domínio: acesse por túnel SSH quando precisar
+  #        ssh -L 5601:<ip-do-container>:5601 usuario@vm   →  http://localhost:5601
+  #   2. domínio só com IP liberado: middleware ipAllowList do Traefik com os IPs
+  #      da rede/VPN da empresa (mais Basic Auth, se quiser uma segunda barreira).
+  # E não use o usuário admin no dia a dia: crie usuários nominais no Security.
   opensearch-dashboards:
     image: opensearchproject/opensearch-dashboards:${OPENSEARCH_VERSION}
     restart: unless-stopped
     environment:
       OPENSEARCH_HOSTS: '["https://opensearch:9200"]'
     expose:
-      - "5601"                   # acesso pelo domínio HTTPS configurado no Dokploy
+      - "5601"                   # só na rede interna; ver o aviso acima antes de publicar
     networks:
       - dokploy-network
 

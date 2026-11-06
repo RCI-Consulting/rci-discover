@@ -1,4 +1,6 @@
-FROM python:3
+# Versão fixa (a mesma do .venv de desenvolvimento): "python:3" mudava de
+# versão sozinho a cada build.
+FROM python:3.12-slim
 
 WORKDIR /usr/src/app
 

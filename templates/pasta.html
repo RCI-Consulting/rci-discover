@@ -70,7 +70,7 @@
         <div class="acoes-form"><button type="submit" class="btn-prim">Salvar</button></div>
       </form>
       <form method="post" action="/pastas/{{ pasta.id }}/apagar" class="apagar-termo">
-        <button type="submit" class="btn-perigo" onclick="return confirm('Apagar esta pasta? Os documentos continuam no índice.')">Apagar pasta</button>
+        <button type="submit" class="btn-perigo" data-confirmar="Apagar esta pasta? Os documentos continuam no índice.">Apagar pasta</button>
       </form>
     {% endif %}
   </main>

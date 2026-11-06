@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 
 import markdown as _markdown
+import nh3
 
 # Extensões que o navegador consegue exibir diretamente (sem plugin externo)
 EXTENSOES_EMBUTIVEIS = {".pdf", ".jpg", ".jpeg", ".png"}
@@ -41,16 +42,39 @@ def pode_embutir(nome: str) -> bool:
     return Path(nome).suffix.lower() in EXTENSOES_EMBUTIVEIS
 
 
+# O que o HTML do preview pode conter depois de convertido do Markdown. Sem
+# <img>: uma imagem externa (![](https://...)) faria o navegador de quem abre o
+# documento avisar um site de fora (IP, horário). Links só http(s) e mailto:
+# `[clique](javascript:...)` vindo de um documento vira texto sem link.
+_TAGS_PREVIEW = {
+    "p", "br", "hr", "h1", "h2", "h3", "h4", "h5", "h6", "strong", "em", "b", "i",
+    "code", "pre", "blockquote", "ul", "ol", "li", "a",
+    "table", "thead", "tbody", "tr", "th", "td",
+}
+_ATRIBUTOS_PREVIEW = {"a": {"href", "title"}, "ol": {"start"}, "th": {"align"}, "td": {"align"}}
+_ESQUEMAS_PREVIEW = {"http", "https", "mailto"}
+
+
 def renderizar_markdown(texto: str) -> str:
     """Converte o Markdown extraído pelo Docling em HTML para exibir no
-    preview. Escapa o texto antes de converter — qualquer tag HTML que
-    viesse literalmente dentro do documento original vira texto inerte em
-    vez de ser interpretada pelo navegador (evita XSS armazenado)."""
+    preview. Duas camadas contra XSS armazenado (o documento pode vir de
+    qualquer pasta de rede):
+    1. escapa o texto antes de converter — tag HTML literal no documento vira
+       texto inerte;
+    2. passa o HTML gerado por uma lista de permissões (nh3), porque o próprio
+       Markdown cria links e imagens com qualquer endereço."""
     if not texto:
         return ""
-    return _markdown.markdown(
+    gerado = _markdown.markdown(
         html.escape(texto),
         extensions=["tables", "fenced_code", "sane_lists"],
+    )
+    return nh3.clean(
+        gerado,
+        tags=_TAGS_PREVIEW,
+        attributes=_ATRIBUTOS_PREVIEW,
+        url_schemes=_ESQUEMAS_PREVIEW,
+        link_rel="noopener noreferrer nofollow",
     )
 
 

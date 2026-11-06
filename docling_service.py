@@ -56,7 +56,7 @@ def extrair_texto_docling(caminho_arquivo: str) -> str:
             raise RuntimeError(f"Erro de conexão com o Docling: {str(e)}")
 
     if res.status_code != 200:
-        raise RuntimeError(f"Docling retornou Status {res.status_code}: {res.text}")
+        raise RuntimeError(f"Docling retornou Status {res.status_code}: {res.text[:500]}")
 
     dados = res.json()
     item = dados[0] if isinstance(dados, list) and len(dados) > 0 else dados
@@ -104,14 +104,12 @@ def extrair_texto_docling(caminho_arquivo: str) -> str:
 
     texto = _remover_imagens_base64(str(texto)).strip()
 
-    print(f"=== TEXTO EXTRAÍDO ({nome_arquivo}) ===")
-    print(f"Tamanho: {len(texto)} caracteres | conversão em {time.monotonic() - inicio:.1f}s")
+    # Só tamanho e tempo: o texto do documento NUNCA vai para o log (LGPD: o
+    # log do Dokploy não tem controle de acesso nem prazo de retenção).
+    print(f"[Docling] '{nome_arquivo}': {len(texto)} caracteres, conversão em {time.monotonic() - inicio:.1f}s")
     if not texto:
         # Ajuda a diagnosticar rápido se a API mudar de formato de novo:
         print(f"[AVISO: TEXTO VAZIO] Chaves recebidas em 'document': {list(doc.keys()) if isinstance(doc, dict) else 'N/A'}")
-    else:
-        print(texto[:300])
-    print("========================================")
 
     return texto
 

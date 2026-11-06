@@ -11,7 +11,7 @@
     <p class="hint">Tudo o que os usuários guardaram, inclusive as pastas privadas. Para ver uma pessoa só, filtre pelo dono ou abra o perfil dela em <a href="/admin/usuarios">Usuários</a>.</p>
 
     <form method="get" class="filtros">
-      <select name="dono" aria-label="Dono" onchange="this.form.submit()">
+      <select name="dono" aria-label="Dono" data-autoenviar>
         <option value="">Todos os donos</option>
         {% for d in donos %}<option value="{{ d.email }}" {{ 'selected' if d.email == dono }}>{{ d.nome }} ({{ d.email }})</option>{% endfor %}
         <option value="{{ sem_dono_valor }}" {{ 'selected' if dono == sem_dono_valor }}>Sem dono (criadas antes do login)</option>

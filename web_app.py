@@ -164,9 +164,56 @@ _MARCA = {
 }
 
 
+def _csp_nonce():
+    """Valor aleatório por requisição: só os <script> inline com esse nonce
+    rodam (CSP). Um script injetado por um documento não tem como sabê-lo."""
+    if "csp_nonce" not in g:
+        g.csp_nonce = secrets.token_urlsafe(16)
+    return g.csp_nonce
+
+
 @app.context_processor
 def contexto_comum():
-    return {"eh_admin": acesso.eh_admin(), "usuario_nome": acesso.nome_atual(), **_MARCA}
+    return {"eh_admin": acesso.eh_admin(), "usuario_nome": acesso.nome_atual(), "csp_nonce": _csp_nonce(), **_MARCA}
+
+
+@app.after_request
+def cabecalhos_seguranca(resposta):
+    """Cabeçalhos de segurança em todas as respostas.
+
+    - CSP nas páginas HTML: scripts só do próprio site ou inline com o nonce;
+      imagens só do site (nada de pixel de rastreamento vindo de documento);
+      fontes do Google Fonts (base.html); a página só pode ser embutida
+      pelo próprio site.
+    - nosniff: o navegador respeita o tipo informado (um .txt nunca vira HTML).
+    - no-store: páginas e arquivos com conteúdo dos documentos não ficam no
+      cache do navegador nem de proxies (computador compartilhado).
+    """
+    h = resposta.headers
+    h.setdefault("X-Content-Type-Options", "nosniff")
+    h.setdefault("X-Frame-Options", "SAMEORIGIN")
+    h.setdefault("Referrer-Policy", "same-origin")
+    h.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()")
+    if request.is_secure:
+        h.setdefault("Strict-Transport-Security", "max-age=31536000")
+    if resposta.mimetype == "text/html":
+        h.setdefault("Content-Security-Policy", "; ".join((
+            "default-src 'self'",
+            f"script-src 'self' 'nonce-{_csp_nonce()}'",
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+            "font-src 'self' https://fonts.gstatic.com",
+            "img-src 'self' data:",
+            "frame-src 'self'",
+            "frame-ancestors 'self'",
+            "object-src 'none'",
+            "base-uri 'self'",
+            "form-action 'self'",
+        )))
+    if not request.path.startswith("/static/") and request.path != "/favicon.ico":
+        # sobrescreve de propósito: o send_file (download/arquivo) põe "no-cache",
+        # que ainda deixa o navegador guardar uma cópia do documento
+        h["Cache-Control"] = "no-store"
+    return resposta
 
 
 @app.template_global()
@@ -322,7 +369,7 @@ def minha_senha():
         except ValueError as e:
             erro = str(e)
         except Exception as e:
-            erro = f"Não consegui trocar a senha agora: {e}"
+            erro = f"Não consegui trocar a senha agora{_detalhe(e)}"
         else:
             session["trocar_senha"] = False
             if obrigatoria:
@@ -348,7 +395,7 @@ def _tela_usuarios(erro=None, sucesso=None, senha_nova=None, status=200):
         for u in lista:
             u["qtd_projetos"] = qtd.get(u["id"], 0)
     except Exception as e:
-        erro = erro or f"Banco de dados de usuários indisponível: {e}"
+        erro = erro or f"Banco de dados de usuários indisponível{_detalhe(e)}"
     if not sucesso:
         sucesso = {"salvo": "Usuário salvo."}.get(request.args.get("ok"))
     return render_template("usuarios_admin.html", usuarios=lista, erro=erro, sucesso=sucesso, senha_nova=senha_nova,
@@ -364,7 +411,7 @@ def _projetos_para_escolher():
     try:
         return projetos.listar(), None
     except Exception as e:
-        return [], f"Não consegui listar os projetos: {e}"
+        return [], f"Não consegui listar os projetos{_detalhe(e)}"
 
 
 def _ids_do_formulario(campo):
@@ -390,7 +437,7 @@ def admin_usuario_novo():
         except ValueError as e:
             erro = str(e)
         except Exception as e:
-            erro = f"Banco de dados de usuários indisponível: {e}"
+            erro = f"Banco de dados de usuários indisponível{_detalhe(e)}"
         else:
             return _tela_usuarios(sucesso=f"Usuário {usuarios.normalizar_email(dados['email'])} criado.",
                                   senha_nova={"email": usuarios.normalizar_email(dados["email"]), "senha": senha})
@@ -403,7 +450,7 @@ def admin_usuario_editar(usuario_id):
     try:
         usuario = usuarios.obter(usuario_id)
     except Exception as e:
-        return render_template("erro.html", titulo="Usuários indisponíveis", mensagem=f"Banco de dados indisponível: {e}"), 503
+        return render_template("erro.html", titulo="Usuários indisponíveis", mensagem=f"Banco de dados indisponível{_detalhe(e)}"), 503
     if not usuario:
         abort(404, "Usuário não encontrado.")
 
@@ -413,14 +460,14 @@ def admin_usuario_editar(usuario_id):
     try:
         marcados = projetos.ids_do_usuario(usuario_id)
     except Exception as e:
-        marcados, erro = set(), erro or f"Não consegui ler os projetos do usuário: {e}"
+        marcados, erro = set(), erro or f"Não consegui ler os projetos do usuário{_detalhe(e)}"
     if request.method == "POST":
         if request.form.get("acao") == "senha":
             senha = usuarios.senha_temporaria()
             try:
                 usuarios.definir_senha(usuario_id, senha, trocar_senha=True)
             except Exception as e:
-                erro = f"Não consegui gerar a senha: {e}"
+                erro = f"Não consegui gerar a senha{_detalhe(e)}"
             else:
                 return _tela_usuarios(sucesso=f"Nova senha temporária gerada para {usuario['email']}.",
                                       senha_nova={"email": usuario["email"], "senha": senha})
@@ -436,7 +483,7 @@ def admin_usuario_editar(usuario_id):
             except ValueError as e:
                 erro = str(e)
             except Exception as e:
-                erro = f"Banco de dados de usuários indisponível: {e}"
+                erro = f"Banco de dados de usuários indisponível{_detalhe(e)}"
             else:
                 return redirect("/admin/usuarios?ok=salvo")
     return render_template("usuario_form.html", usuario=_usuario_para_tela(usuario), dados=dados, erro=erro,
@@ -467,17 +514,17 @@ def _tela_perfil(usuario, proprio):
         for p in minhas:
             p["atualizado_local"] = _local(p["atualizado_em"])
     except Exception as e:
-        erro = f"Banco de dados das pastas indisponível: {e}"
+        erro = f"Banco de dados das pastas indisponível{_detalhe(e)}"
     try:
         buscas = sorted(buscas_salvas.listar(email), key=lambda b: b["criado_em"], reverse=True)
     except Exception as e:
-        erro = erro or f"Banco de dados das buscas salvas indisponível: {e}"
+        erro = erro or f"Banco de dados das buscas salvas indisponível{_detalhe(e)}"
     meus_projetos = []
     if usuario["papel"] != "admin":
         try:
             meus_projetos = projetos.listar(usuario["id"])
         except Exception as e:
-            erro = erro or f"Banco de dados dos projetos indisponível: {e}"
+            erro = erro or f"Banco de dados dos projetos indisponível{_detalhe(e)}"
     return render_template(
         "perfil.html", perfil=_usuario_para_tela(usuario), proprio=proprio, erro=erro, projetos_acesso=meus_projetos,
         pastas=minhas if not proprio else minhas[:RESUMO_PASTAS], total_pastas=len(minhas),
@@ -492,7 +539,7 @@ def perfil():
     try:
         usuario = usuarios.obter(session["usuario"]["id"])
     except Exception as e:
-        return render_template("erro.html", titulo="Perfil indisponível", mensagem=f"Banco de dados indisponível: {e}"), 503
+        return render_template("erro.html", titulo="Perfil indisponível", mensagem=f"Banco de dados indisponível{_detalhe(e)}"), 503
     if not usuario:
         abort(404, "Usuário não encontrado.")
     return _tela_perfil(usuario, proprio=True)
@@ -503,7 +550,7 @@ def admin_usuario_perfil(usuario_id):
     try:
         usuario = usuarios.obter(usuario_id)
     except Exception as e:
-        return render_template("erro.html", titulo="Perfil indisponível", mensagem=f"Banco de dados indisponível: {e}"), 503
+        return render_template("erro.html", titulo="Perfil indisponível", mensagem=f"Banco de dados indisponível{_detalhe(e)}"), 503
     if not usuario:
         abort(404, "Usuário não encontrado.")
     return _tela_perfil(usuario, proprio=usuario_id == session["usuario"]["id"])
@@ -522,7 +569,7 @@ def admin_conteudo():
     try:
         donos = [{"email": u["email"], "nome": u["nome"]} for u in usuarios.listar()]
     except Exception as e:
-        erro = f"Banco de dados de usuários indisponível: {e}"
+        erro = f"Banco de dados de usuários indisponível{_detalhe(e)}"
     try:
         lista_pastas = pastas.todas(None if sem_dono else (dono or None), sem_dono)
         for p in lista_pastas:
@@ -531,7 +578,7 @@ def admin_conteudo():
         for b in lista_buscas:
             b["criado_local"] = _local(b["criado_em"])
     except Exception as e:
-        erro = erro or f"Banco de dados indisponível: {e}"
+        erro = erro or f"Banco de dados indisponível{_detalhe(e)}"
     nomes = {d["email"]: d["nome"] for d in donos}
     return render_template(
         "admin_conteudo.html", pastas=lista_pastas, buscas=lista_buscas, donos=donos, nomes=nomes,
@@ -543,6 +590,22 @@ def admin_conteudo():
 def favicon():
     """Os navegadores pedem /favicon.ico na raiz, mesmo sem <link> na página."""
     return send_from_directory(app.static_folder, "favicon.ico", mimetype="image/vnd.microsoft.icon", max_age=86400)
+
+
+def _detalhe(e):
+    """Registra o erro no log e devolve o detalhe técnico (" (mensagem)") só
+    para administradores. Os demais veem a mensagem genérica: o texto da
+    exceção pode trazer host, usuário do banco, nomes de índices e trechos de
+    consultas."""
+    print(f"[Erro] {request.method} {request.path}: {type(e).__name__}: {e}")
+    return f" ({e})" if acesso.eh_admin() else ""
+
+
+@app.errorhandler(500)
+def erro_interno(e):
+    original = getattr(e, "original_exception", None) or e
+    return render_template("erro.html", titulo="Erro inesperado",
+                           mensagem=f"Algo deu errado ao atender o pedido{_detalhe(original)}. Tente de novo em instantes."), 500
 
 
 @app.errorhandler(403)
@@ -686,7 +749,7 @@ def _pesquisar(q, alvo, projeto=None, listar_tudo=False):
                 })
 
     except Exception as e:
-        erro = str(e)
+        erro = f"a busca não pôde ser concluída agora{_detalhe(e)}"
 
     if correcao:
         correcao["destaque"] = escapar_destaque(correcao["destaque"])
@@ -768,7 +831,7 @@ def projetos_pagina():
         for p in lista:
             p["qtd_indices"] = len(p["indices"])
     except Exception as e:
-        erro = f"Não consegui carregar os projetos: {e}"
+        erro = f"Não consegui carregar os projetos{_detalhe(e)}"
     return render_template("projetos.html", projetos=lista, erro=erro)
 
 
@@ -779,7 +842,7 @@ def projeto_busca(slug):
     except Exception as e:
         return render_template(
             "erro.html", titulo="Projetos indisponíveis",
-            mensagem=f"Não consegui carregar o projeto agora ({e}). A busca geral continua funcionando.",
+            mensagem=f"Não consegui carregar o projeto agora{_detalhe(e)}. A busca geral continua funcionando.",
         ), 503
     if not projeto or not _pode_ver_projeto(projeto):
         abort(404, "Projeto não encontrado.")  # sem acesso: nem confirma que o projeto existe
@@ -801,7 +864,7 @@ def ingest():
     try:
         disponiveis = _listar_indices()
     except Exception as e:
-        erro = f"Não consegui listar os índices no OpenSearch: {e}"
+        erro = f"Não consegui listar os índices no OpenSearch{_detalhe(e)}"
 
     nomes = {i["nome"] for i in disponiveis}
     indice_selecionado = request.form.get("indice") or (
@@ -841,7 +904,7 @@ def ingest():
                     resultados.append({"nome": nome_seguro, "ok": True, "mensagem": ""})
 
                 except Exception as e:
-                    resultados.append({"nome": arquivo.filename, "ok": False, "mensagem": f"Falha ao enfileirar: {e}"})
+                    resultados.append({"nome": arquivo.filename, "ok": False, "mensagem": f"Falha ao enfileirar{_detalhe(e)}"})
 
     return render_template(
         "ingest.html",
@@ -870,7 +933,7 @@ def fila():
             job["status_texto"] = STATUS_TEXTO.get(job["status"], job["status"])
             job["criado_local"] = job["criado_em"] + timedelta(hours=config.FUSO_HORAS)
     except Exception as e:
-        erro = f"Banco de dados da fila indisponível: {e}"
+        erro = f"Banco de dados da fila indisponível{_detalhe(e)}"
 
     ativos = contagem.get("fila", 0) + contagem.get("processando", 0) > 0
     return render_template("fila.html", jobs=lista, contagem=contagem, ativos=ativos, erro=erro)
@@ -912,9 +975,9 @@ def indices_pagina():
             if getattr(e, "error", "") == "resource_already_exists_exception":
                 erro = "Já existe um índice com esse nome."
             else:
-                erro = f"O OpenSearch recusou a criação: {e}"
+                erro = f"O OpenSearch recusou a criação{_detalhe(e)}"
         except Exception as e:
-            erro = f"Erro ao criar o índice: {e}"
+            erro = f"Erro ao criar o índice{_detalhe(e)}"
 
     if request.args.get("criado"):
         sucesso = f'Índice "{request.args["criado"]}" criado.'
@@ -951,7 +1014,7 @@ def indices_pagina():
     try:
         lista = _listar_indices()
     except Exception as e:
-        erro = erro or f"Não consegui listar os índices no OpenSearch: {e}"
+        erro = erro or f"Não consegui listar os índices no OpenSearch{_detalhe(e)}"
 
     try:
         pendentes = cliente.contar_desatualizados(indices.padrao_busca()) if lista else {}
@@ -981,7 +1044,7 @@ def _indices_para_escolher():
     try:
         return _listar_indices(), None
     except Exception as e:
-        return [], f"Não consegui listar os índices no OpenSearch: {e}"
+        return [], f"Não consegui listar os índices no OpenSearch{_detalhe(e)}"
 
 
 @app.route("/admin/projetos")
@@ -993,7 +1056,7 @@ def admin_projetos():
         for p in lista:
             p["indices_exibicao"] = [indices.nome_exibicao(i) for i in p["indices"]]
     except Exception as e:
-        erro = f"Banco de dados dos projetos indisponível: {e}"
+        erro = f"Banco de dados dos projetos indisponível{_detalhe(e)}"
     mensagens = {"criado": "Projeto criado.", "salvo": "Projeto salvo.", "apagado": "Projeto apagado."}
     return render_template("projetos_admin.html", projetos=lista, erro=erro, sucesso=mensagens.get(request.args.get("ok")))
 
@@ -1005,7 +1068,7 @@ def _formulario_projeto(projeto):
         # só quem não é admin precisa de acesso por projeto (admins veem tudo)
         pessoas = [u for u in usuarios.listar() if u["papel"] != "admin"]
     except Exception as e:
-        pessoas, erro = [], erro or f"Não consegui listar os usuários: {e}"
+        pessoas, erro = [], erro or f"Não consegui listar os usuários{_detalhe(e)}"
     nome = projeto["nome"] if projeto else ""
     descricao = (projeto["descricao"] or "") if projeto else ""
     marcados = list(projeto["indices"]) if projeto else []
@@ -1026,7 +1089,7 @@ def _formulario_projeto(projeto):
         except ValueError as e:
             erro = str(e)
         except Exception as e:
-            erro = f"Erro ao salvar o projeto: {e}"
+            erro = f"Erro ao salvar o projeto{_detalhe(e)}"
 
     return render_template(
         "projeto_form.html", projeto=projeto, nome=nome, descricao=descricao,
@@ -1040,7 +1103,7 @@ def _projeto_ou_erro(projeto_id):
     try:
         projeto = projetos.obter(projeto_id)
     except Exception as e:
-        return None, (render_template("erro.html", titulo="Projetos indisponíveis", mensagem=f"Banco de dados indisponível: {e}"), 503)
+        return None, (render_template("erro.html", titulo="Projetos indisponíveis", mensagem=f"Banco de dados indisponível{_detalhe(e)}"), 503)
     if not projeto:
         abort(404, "Projeto não encontrado.")
     return projeto, None
@@ -1081,13 +1144,13 @@ def admin_dicionario():
         except ValueError as e:
             erro = str(e)
         except Exception as e:
-            erro = f"Banco de dados do dicionário indisponível: {e}"
+            erro = f"Banco de dados do dicionário indisponível{_detalhe(e)}"
 
     lista = []
     try:
         lista = dicionario.listar()
     except Exception as e:
-        erro = erro or f"Banco de dados do dicionário indisponível: {e}"
+        erro = erro or f"Banco de dados do dicionário indisponível{_detalhe(e)}"
     mensagens = {"criado": "Termo adicionado.", "salvo": "Termo salvo.", "apagado": "Termo apagado."}
     return render_template(
         "dicionario_admin.html", entradas=lista, erro=erro, termo=termo, sinonimos=sinonimos,
@@ -1101,7 +1164,7 @@ def admin_dicionario_editar(entrada_id):
     try:
         entrada = dicionario.obter(entrada_id)
     except Exception as e:
-        return render_template("erro.html", titulo="Dicionário indisponível", mensagem=f"Banco de dados indisponível: {e}"), 503
+        return render_template("erro.html", titulo="Dicionário indisponível", mensagem=f"Banco de dados indisponível{_detalhe(e)}"), 503
     if not entrada:
         abort(404, "Termo não encontrado.")
 
@@ -1116,7 +1179,7 @@ def admin_dicionario_editar(entrada_id):
         except ValueError as e:
             erro = str(e)
         except Exception as e:
-            erro = f"Erro ao salvar: {e}"
+            erro = f"Erro ao salvar{_detalhe(e)}"
     return render_template(
         "dicionario_form.html", entrada=entrada, termo=termo, sinonimos=sinonimos, erro=erro,
         limite_termo=dicionario.LIMITE_TERMO, limite_sinonimos=dicionario.LIMITE_SINONIMOS,
@@ -1128,12 +1191,12 @@ def admin_dicionario_apagar(entrada_id):
     try:
         dicionario.apagar(entrada_id)
     except Exception as e:
-        return render_template("erro.html", titulo="Dicionário indisponível", mensagem=f"Banco de dados indisponível: {e}"), 503
+        return render_template("erro.html", titulo="Dicionário indisponível", mensagem=f"Banco de dados indisponível{_detalhe(e)}"), 503
     return redirect("/admin/dicionario?ok=apagado")
 
 
 def _destaques_indisponivel(e):
-    return render_template("erro.html", titulo="Destaques indisponíveis", mensagem=f"Banco de dados indisponível: {e}"), 503
+    return render_template("erro.html", titulo="Destaques indisponíveis", mensagem=f"Banco de dados indisponível{_detalhe(e)}"), 503
 
 
 @app.route("/admin/destaques")
@@ -1145,7 +1208,7 @@ def admin_destaques():
         for d in lista:
             d["indice_nome"] = indices.nome_exibicao(d["indice"])
     except Exception as e:
-        erro = f"Banco de dados dos destaques indisponível: {e}"
+        erro = f"Banco de dados dos destaques indisponível{_detalhe(e)}"
     mensagens = {"criado": "Destaque criado.", "salvo": "Destaque salvo.", "apagado": "Destaque apagado."}
     return render_template("destaques_admin.html", destaques=lista, erro=erro, sucesso=mensagens.get(request.args.get("ok")))
 
@@ -1209,12 +1272,12 @@ def _formulario_destaque(destaque):
         except ValueError as e:
             erro = str(e)
         except Exception as e:
-            erro = f"Erro ao salvar o destaque: {e}"
+            erro = f"Erro ao salvar o destaque{_detalhe(e)}"
     elif busca_doc and not escolhido:
         try:
             candidatos = _buscar_documentos(busca_doc)
         except Exception as e:
-            erro = f"Não consegui buscar os documentos: {e}"
+            erro = f"Não consegui buscar os documentos{_detalhe(e)}"
 
     return render_template(
         "destaque_form.html", destaque=destaque, escolhido=escolhido, candidatos=candidatos,
@@ -1271,7 +1334,7 @@ def indice_reindexar(nome):
     except Exception as e:
         return render_template(
             "erro.html", titulo="Não consegui reindexar",
-            mensagem=f"Erro ao reindexar \"{indices.nome_exibicao(nome)}\": {e}",
+            mensagem=f"Erro ao reindexar \"{indices.nome_exibicao(nome)}\"{_detalhe(e)}",
         ), 500
 
     return redirect(
@@ -1299,7 +1362,7 @@ def indice_sem_texto(nome):
     except Exception as e:
         return render_template(
             "erro.html", titulo="Não consegui reprocessar",
-            mensagem=f"Erro no índice \"{indices.nome_exibicao(nome)}\": {e}",
+            mensagem=f"Erro no índice \"{indices.nome_exibicao(nome)}\"{_detalhe(e)}",
         ), 500
     return redirect(
         f"/admin/indices?sem_texto={quote(indices.nome_exibicao(nome))}"
@@ -1317,7 +1380,7 @@ def indice_portugues(nome):
     except Exception as e:
         return render_template(
             "erro.html", titulo="Não consegui ativar o português",
-            mensagem=f"Erro no índice \"{indices.nome_exibicao(nome)}\": {e}",
+            mensagem=f"Erro no índice \"{indices.nome_exibicao(nome)}\"{_detalhe(e)}",
         ), 500
     return redirect(f"/admin/indices?portugues={quote(indices.nome_exibicao(nome))}")
 
@@ -1345,7 +1408,7 @@ def indice_apagar(nome):
             try:
                 cliente.apagar_indice(nome)
             except Exception as e:
-                erro = f"Erro ao apagar o índice: {e}"
+                erro = f"Erro ao apagar o índice{_detalhe(e)}"
             else:
                 try:
                     jobs.apagar_do_indice(nome)
@@ -1401,7 +1464,7 @@ def auditoria_pagina():
         for linha in linhas:
             linha["criado_local"] = linha["criado_em"] + timedelta(hours=config.FUSO_HORAS)
     except Exception as e:
-        erro = f"Banco de dados da auditoria indisponível: {e}"
+        erro = f"Banco de dados da auditoria indisponível{_detalhe(e)}"
 
     paginas = max(1, -(-total // POR_PAGINA_AUDITORIA))
     return render_template(
@@ -1434,7 +1497,7 @@ def _preparar_execucao(e):
 
 
 def _fontes_indisponivel(e):
-    return render_template("erro.html", titulo="Fontes indisponíveis", mensagem=f"Banco de dados indisponível: {e}"), 503
+    return render_template("erro.html", titulo="Fontes indisponíveis", mensagem=f"Banco de dados indisponível{_detalhe(e)}"), 503
 
 
 @app.route("/admin/fontes")
@@ -1448,7 +1511,7 @@ def admin_fontes():
             f["proxima_local"] = _hora_local(f["proxima_em"])
             _preparar_execucao(f["ultima"])
     except Exception as e:
-        erro = f"Banco de dados das fontes indisponível: {e}"
+        erro = f"Banco de dados das fontes indisponível{_detalhe(e)}"
     executando = any(f["solicitada"] or (f["ultima"] and f["ultima"]["status"] == "executando") for f in lista)
     mensagens = {
         "criada": "Fonte criada. A primeira passada começa em alguns segundos.",
@@ -1508,7 +1571,7 @@ def _formulario_fonte(fonte):
         except (ValueError, RuntimeError) as e:
             erro = str(e)
         except Exception as e:
-            erro = f"Erro ao salvar a fonte: {e}"
+            erro = f"Erro ao salvar a fonte{_detalhe(e)}"
 
     historico = []
     if fonte:
@@ -1584,7 +1647,7 @@ def auditoria_exportar():
     try:
         linhas, _cortou = auditoria.exportar(dias, termo)
     except Exception as e:
-        return render_template("erro.html", titulo="Auditoria indisponível", mensagem=f"Banco de dados indisponível: {e}"), 503
+        return render_template("erro.html", titulo="Auditoria indisponível", mensagem=f"Banco de dados indisponível{_detalhe(e)}"), 503
     nome = f"auditoria-buscas-{(datetime.now(timezone.utc) + timedelta(hours=config.FUSO_HORAS)):%Y%m%d-%H%M}.csv"
     return Response(
         relatorios.csv_auditoria(linhas), mimetype="text/csv; charset=utf-8",
@@ -1593,7 +1656,7 @@ def auditoria_exportar():
 
 
 def _email_indisponivel(e):
-    return render_template("erro.html", titulo="Configurações indisponíveis", mensagem=f"Banco de dados indisponível: {e}"), 503
+    return render_template("erro.html", titulo="Configurações indisponíveis", mensagem=f"Banco de dados indisponível{_detalhe(e)}"), 503
 
 
 @app.route("/admin/email", methods=["GET", "POST"])
@@ -1630,7 +1693,7 @@ def admin_email():
                 configuracoes.salvar(conf)
                 sucesso = "Servidor de e-mail salvo."
             elif acao == "teste":
-                destino = email_envio.separar_emails(request.form.get("destino", ""))
+                destino = email_envio.conferir_dominios(email_envio.separar_emails(request.form.get("destino", "")))
                 if not destino:
                     raise ValueError("Informe para quem mandar o e-mail de teste.")
                 email_envio.enviar(
@@ -1640,7 +1703,7 @@ def admin_email():
                 )
                 sucesso = f"E-mail de teste enviado para {', '.join(destino)}."
             elif acao == "alertas":
-                destinatarios = email_envio.separar_emails(request.form.get("alertas_destinatarios", ""))
+                destinatarios = email_envio.conferir_dominios(email_envio.separar_emails(request.form.get("alertas_destinatarios", "")))
                 ativos = bool(request.form.get("alertas_ativos"))
                 if ativos and not destinatarios:
                     raise ValueError("Informe quem recebe os alertas.")
@@ -1659,7 +1722,7 @@ def admin_email():
         except (ValueError, RuntimeError) as e:
             erro = str(e)
         except Exception as e:
-            erro = f"Erro: {e}"
+            erro = f"Erro{_detalhe(e)}"
 
     envios = []
     try:
@@ -1684,7 +1747,7 @@ def admin_relatorios():
             r["proxima_local"] = _hora_local(r["proxima_em"])
             r["ultimo_local"] = _hora_local(r["ultimo_envio"])
     except Exception as e:
-        erro = f"Banco de dados dos relatórios indisponível: {e}"
+        erro = f"Banco de dados dos relatórios indisponível{_detalhe(e)}"
     configurado = False
     try:
         configurado = email_envio.configurado()
@@ -1721,7 +1784,7 @@ def _formulario_relatorio(relatorio):
         except ValueError as e:
             erro = str(e)
         except Exception as e:
-            erro = f"Erro ao salvar o relatório: {e}"
+            erro = f"Erro ao salvar o relatório{_detalhe(e)}"
     return render_template(
         "relatorio_form.html", relatorio=relatorio, dados=dados, erro=erro,
         periodos=relatorios.PERIODOS, frequencias=relatorios.FREQUENCIAS, limite_nome=relatorios.LIMITE_NOME,
@@ -1772,7 +1835,7 @@ def admin_relatorio_apagar(relatorio_id):
 
 
 def _buscas_indisponivel(e):
-    return render_template("erro.html", titulo="Buscas salvas indisponíveis", mensagem=f"Banco de dados indisponível: {e}"), 503
+    return render_template("erro.html", titulo="Buscas salvas indisponíveis", mensagem=f"Banco de dados indisponível{_detalhe(e)}"), 503
 
 
 @app.route("/buscas-salvas")
@@ -1784,7 +1847,7 @@ def buscas_salvas_pagina():
         for b in lista:
             b["proxima_local"] = _hora_local(b["proxima_em"])
     except Exception as e:
-        erro = f"Banco de dados das buscas salvas indisponível: {e}"
+        erro = f"Banco de dados das buscas salvas indisponível{_detalhe(e)}"
     mensagens = {"criada": "Busca salva.", "salva": "Busca salva.", "apagada": "Busca apagada."}
     return render_template(
         "buscas_salvas.html", buscas=lista, erro=erro, sucesso=mensagens.get(request.args.get("ok")),
@@ -1830,7 +1893,7 @@ def buscas_salvas_editar(busca_id):
         except ValueError as e:
             erro = str(e)
         except Exception as e:
-            erro = f"Erro ao salvar: {e}"
+            erro = f"Erro ao salvar{_detalhe(e)}"
     return render_template(
         "busca_salva_form.html", busca=busca, dados=dados, erro=erro,
         frequencias=buscas_salvas.FREQUENCIAS, limite_nome=buscas_salvas.LIMITE_NOME,
@@ -1847,7 +1910,7 @@ def buscas_salvas_apagar(busca_id):
 
 
 def _pastas_indisponivel(e):
-    return render_template("erro.html", titulo="Pastas indisponíveis", mensagem=f"Banco de dados indisponível: {e}"), 503
+    return render_template("erro.html", titulo="Pastas indisponíveis", mensagem=f"Banco de dados indisponível{_detalhe(e)}"), 503
 
 
 def _pasta_ou_erro(pasta_id, editar=False):
@@ -1875,7 +1938,7 @@ def pastas_pagina():
     try:
         minhas, publicas = pastas.listar(usuario)
     except Exception as e:
-        erro = f"Banco de dados das pastas indisponível: {e}"
+        erro = f"Banco de dados das pastas indisponível{_detalhe(e)}"
     mensagens = {"apagada": "Pasta apagada."}
     return render_template(
         "pastas.html", minhas=minhas, publicas=publicas, erro=erro, sem_login=usuario is None,
@@ -1984,7 +2047,7 @@ def pastas_do_documento():
     try:
         lista = pastas.editaveis(acesso.usuario_atual(), request.args.get("indice"), request.args.get("doc"))
     except Exception as e:
-        return jsonify({"erro": f"Pastas indisponíveis: {e}"}), 503
+        return jsonify({"erro": f"Pastas indisponíveis{_detalhe(e)}"}), 503
     resposta = jsonify({"pastas": [{"id": p["id"], "nome": p["nome"], "publica": bool(p["publica"]), "contem": bool(p["contem"])} for p in lista]})
     resposta.headers["Cache-Control"] = "no-store"
     return resposta
@@ -2021,7 +2084,7 @@ def pastas_documento():
     except ValueError as e:
         return jsonify({"erro": str(e)}), 400
     except Exception as e:
-        return jsonify({"erro": f"Pastas indisponíveis: {e}"}), 503
+        return jsonify({"erro": f"Pastas indisponíveis{_detalhe(e)}"}), 503
     return jsonify({"ok": True, "mensagem": mensagem, "pasta_id": pasta_id})
 
 

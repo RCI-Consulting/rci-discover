@@ -18,7 +18,7 @@
     </div>
   {% endfor %}
 </nav>
-<script>
+<script nonce="{{ csp_nonce }}">
   // no celular o menu vira uma faixa rolável: deixa a tela atual à vista
   (function () {
     var menu = document.querySelector(".menu-admin"), ativo = menu && menu.querySelector("a.active");

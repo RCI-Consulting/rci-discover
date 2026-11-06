@@ -19,7 +19,7 @@
         <select name="frequencia">
           {% for f, rotulo in frequencias %}<option value="{{ f }}" {{ 'selected' if f == dados.frequencia }}>{{ rotulo }}</option>{% endfor %}
         </select></label>
-      <label class="campo"><span>E-mail <span class="hint">(obrigatório com alerta)</span></span>
+      <label class="campo"><span>E-mail <span class="hint">(só o seu; vazio = o seu e-mail de login)</span></span>
         <input type="text" name="alerta_email" value="{{ dados.alerta_email }}" placeholder="voce@empresa.com.br"></label>
       <p class="hint">Os alertas saem às 7h (Brasília) e trazem os documentos indexados ou atualizados desde o último aviso. Sem novidade, não chega e-mail.</p>
       <div class="acoes-form">
@@ -29,7 +29,7 @@
     </form>
 
     <form method="post" action="/buscas-salvas/{{ busca.id }}/apagar" class="apagar-termo">
-      <button type="submit" class="btn-perigo" onclick="return confirm('Apagar esta busca salva?')">Apagar busca</button>
+      <button type="submit" class="btn-perigo" data-confirmar="Apagar esta busca salva?">Apagar busca</button>
     </form>
   </main>
 </div>

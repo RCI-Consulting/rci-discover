@@ -55,7 +55,7 @@
                   <span class="badge badge-concluido">Ativo</span>
                 {% elif i.portugues is not none %}
                   <form method="post" action="/admin/indices/{{ i.nome }}/portugues" class="inline">
-                    <button type="submit" class="btn-sec" onclick="return confirm('Ativar o português neste índice? Ele fica indisponível por um ou dois segundos e os documentos são reprocessados em segundo plano.')">Ativar</button>
+                    <button type="submit" class="btn-sec" data-confirmar="Ativar o português neste índice? Ele fica indisponível por um ou dois segundos e os documentos são reprocessados em segundo plano.">Ativar</button>
                   </form>
                 {% else %}—{% endif %}
               </td>
