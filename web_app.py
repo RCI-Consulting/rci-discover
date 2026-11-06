@@ -373,6 +373,95 @@ def admin_usuario_editar(usuario_id):
                            papeis=usuarios.PAPEIS, limite_nome=usuarios.LIMITE_NOME, eu=eu)
 
 
+# ---- Perfil ------------------------------------------------------------------
+
+RESUMO_PASTAS = 6
+RESUMO_BUSCAS = 5
+
+
+def _local(valor):
+    return valor + timedelta(hours=config.FUSO_HORAS) if valor else None
+
+
+def _tela_perfil(usuario, proprio):
+    """Perfil de `usuario` (dict do banco). `proprio`: é o de quem está logado
+    (mostra só um resumo, com links para as telas completas); senão é o admin
+    olhando o perfil de outra pessoa (mostra todas as pastas, até as privadas)."""
+    erro = None
+    minhas, buscas = [], []
+    email = usuario["email"]
+    try:
+        minhas, _ = pastas.listar(email)
+        minhas.sort(key=lambda p: p["atualizado_em"], reverse=True)
+        for p in minhas:
+            p["atualizado_local"] = _local(p["atualizado_em"])
+    except Exception as e:
+        erro = f"Banco de dados das pastas indisponível: {e}"
+    try:
+        buscas = sorted(buscas_salvas.listar(email), key=lambda b: b["criado_em"], reverse=True)
+    except Exception as e:
+        erro = erro or f"Banco de dados das buscas salvas indisponível: {e}"
+    return render_template(
+        "perfil.html", perfil=_usuario_para_tela(usuario), proprio=proprio, erro=erro,
+        pastas=minhas if not proprio else minhas[:RESUMO_PASTAS], total_pastas=len(minhas),
+        pastas_publicas=sum(1 for p in minhas if p["publica"]),
+        buscas=buscas if not proprio else buscas[:RESUMO_BUSCAS], total_buscas=len(buscas),
+        buscas_com_alerta=sum(1 for b in buscas if b["frequencia"] != "nenhuma"),
+    )
+
+
+@app.route("/perfil")
+def perfil():
+    try:
+        usuario = usuarios.obter(session["usuario"]["id"])
+    except Exception as e:
+        return render_template("erro.html", titulo="Perfil indisponível", mensagem=f"Banco de dados indisponível: {e}"), 503
+    if not usuario:
+        abort(404, "Usuário não encontrado.")
+    return _tela_perfil(usuario, proprio=True)
+
+
+@app.route("/admin/usuarios/<int:usuario_id>/perfil")
+def admin_usuario_perfil(usuario_id):
+    try:
+        usuario = usuarios.obter(usuario_id)
+    except Exception as e:
+        return render_template("erro.html", titulo="Perfil indisponível", mensagem=f"Banco de dados indisponível: {e}"), 503
+    if not usuario:
+        abort(404, "Usuário não encontrado.")
+    return _tela_perfil(usuario, proprio=usuario_id == session["usuario"]["id"])
+
+
+SEM_DONO = "__sem_dono__"   # filtro da visão geral: itens criados antes do login
+
+
+@app.route("/admin/conteudo")
+def admin_conteudo():
+    """Todas as pastas e buscas salvas do sistema, com filtro por dono."""
+    dono = request.args.get("dono", "").strip()[:255]
+    sem_dono = dono == SEM_DONO
+    erro = None
+    lista_pastas, lista_buscas, donos = [], [], []
+    try:
+        donos = [{"email": u["email"], "nome": u["nome"]} for u in usuarios.listar()]
+    except Exception as e:
+        erro = f"Banco de dados de usuários indisponível: {e}"
+    try:
+        lista_pastas = pastas.todas(None if sem_dono else (dono or None), sem_dono)
+        for p in lista_pastas:
+            p["atualizado_local"] = _local(p["atualizado_em"])
+        lista_buscas = buscas_salvas.todas(None if sem_dono else (dono or None), sem_dono)
+        for b in lista_buscas:
+            b["criado_local"] = _local(b["criado_em"])
+    except Exception as e:
+        erro = erro or f"Banco de dados indisponível: {e}"
+    nomes = {d["email"]: d["nome"] for d in donos}
+    return render_template(
+        "admin_conteudo.html", pastas=lista_pastas, buscas=lista_buscas, donos=donos, nomes=nomes,
+        dono=dono, sem_dono_valor=SEM_DONO, erro=erro, limite=pastas.LIMITE_TODAS,
+    )
+
+
 @app.route("/favicon.ico")
 def favicon():
     """Os navegadores pedem /favicon.ico na raiz, mesmo sem <link> na página."""
@@ -421,16 +510,22 @@ def _destaques_da_busca(q, projeto):
     return lista
 
 
-def _pesquisar(q, alvo, projeto=None):
+def _pesquisar(q, alvo, projeto=None, listar_tudo=False):
     """Roda a busca em `alvo` (expressão de índices) e prepara o que a tela
     mostra. O `projeto`, quando existe, entra no registro da auditoria e nas
-    sugestões (que ficam restritas às buscas daquele projeto)."""
+    sugestões (que ficam restritas às buscas daquele projeto).
+
+    `listar_tudo` (busca enviada com o campo vazio): todos os documentos de
+    `alvo`, mais recentes primeiro, com filtros, temas e paginação, mas sem
+    termo, destaque, correção, sinônimos nem registro na auditoria."""
     resultados = []
     total = 0
     erro = None
     filtros = facetas.ler_filtros(request.args)
     temas_ativos = temas.ler_temas(request.args)
     ordem = relevancia.ler_ordem(request.args)
+    if listar_tudo and ordem == "relevancia":
+        ordem = "recentes"  # sem termo, "relevância" não ordena nada
     pagina = relevancia.ler_pagina(request.args)
     lista_facetas = []
     lista_destaques = []
@@ -441,15 +536,17 @@ def _pesquisar(q, alvo, projeto=None):
     slug = projeto["slug"] if projeto else None
 
     try:
-        if q and alvo:
+        if (q or listar_tudo) and alvo:
             try:
-                expansoes = dicionario.expandir(q)
+                expansoes = dicionario.expandir(q) if q else []
             except Exception:
                 expansoes = []  # o dicionário é um extra: sem ele a busca segue normal
 
             # pesos por campo, frase exata, erros de digitação, sinônimos e bônus de recência
+            # (busca vazia: todos os documentos)
+            consulta = relevancia.montar_consulta(q, expansoes) if q else {"match_all": {}}
             body = {
-                "query": temas.restringir(relevancia.montar_consulta(q, expansoes), temas_ativos),
+                "query": temas.restringir(consulta, temas_ativos),
                 "highlight": {
                     "fields": {
                         # palavra exata; se só a variação em português casou, o destaque vem do .pt
@@ -460,6 +557,9 @@ def _pesquisar(q, alvo, projeto=None):
                 "_source": ["nome", "titulo", "caminho", "conteudo"],
             }
             relevancia.aplicar(body, ordem, pagina)
+            if not q:
+                body.pop("highlight")          # sem termo não há o que destacar
+                body["track_total_hits"] = True  # contagem real, mesmo acima de 10 mil
 
             post_filter, aggs = facetas.montar_consulta(filtros)
             body["aggs"] = aggs
@@ -470,13 +570,13 @@ def _pesquisar(q, alvo, projeto=None):
             total = resp["hits"]["total"]["value"]
             lista_facetas = facetas.interpretar(resp.get("aggregations"), filtros)
             lista_temas = temas.consultar(cliente, alvo, body["query"], post_filter, q, temas_ativos, total)
-            if total <= 3:
+            if q and total <= 3:
                 correcao = sugestoes.correcao(cliente, alvo, q)
-            if total == 0:
+            if q and total == 0:
                 populares = sugestoes.populares(slug)
-            if pagina == 1:
+            if q and pagina == 1:
                 lista_destaques = _destaques_da_busca(q, projeto)
-            if pagina == 1 and ordem == "relevancia":
+            if q and pagina == 1 and ordem == "relevancia":
                 # trocar de página ou de ordem não é uma busca nova
                 resumo = "; ".join(
                     parte for parte in (
@@ -519,17 +619,22 @@ def _pesquisar(q, alvo, projeto=None):
         "expansoes": expansoes, "correcao": correcao, "populares": populares,
         "destaques": lista_destaques,
         "temas": lista_temas, "temas_ativos": temas_ativos,
-        "ordem": ordem, "ordenacoes": relevancia.ORDENACOES,
+        "ordem": ordem,
+        "ordenacoes": [o for o in relevancia.ORDENACOES if not (listar_tudo and o[0] == "relevancia")],
+        "listar_tudo": listar_tudo,
         "pagina": pagina, "paginas": paginas, "barra_paginas": relevancia.paginas_visiveis(pagina, paginas),
     }
 
 
 def _tela_busca(q, alvo, projeto=None):
+    # Busca enviada com o campo vazio (?q=) lista tudo; abrir /busca sem
+    # parâmetro continua mostrando só a caixa de busca.
+    listar_tudo = not q and "q" in request.args
     return render_template(
         "index.html", q=q, projeto=projeto, acao=f"/p/{projeto['slug']}" if projeto else "/busca",
         parametros_salvar=buscas_salvas.parametros_da_tela(request.args),
         frequencias_alerta=buscas_salvas.FREQUENCIAS,
-        **_pesquisar(q, alvo, projeto),
+        **_pesquisar(q, alvo, projeto, listar_tudo),
     )
 
 

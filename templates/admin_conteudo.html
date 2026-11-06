@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Pastas e buscas — Administração — {{ app_nome }}{% endblock %}
+{% block content %}
+<div class="page is-results">
+  {% set ativo = 'admin' %}{% set aba = 'conteudo' %}
+  {% include '_topbar.html' %}
+  {% include '_admin_abas.html' %}
+
+  <main class="tabela-area">
+    <h1>Pastas e buscas salvas</h1>
+    <p class="hint">Tudo o que os usuários guardaram, inclusive as pastas privadas. Para ver uma pessoa só, filtre pelo dono ou abra o perfil dela em <a href="/admin/usuarios">Usuários</a>.</p>
+
+    <form method="get" class="filtros">
+      <select name="dono" aria-label="Dono" onchange="this.form.submit()">
+        <option value="">Todos os donos</option>
+        {% for d in donos %}<option value="{{ d.email }}" {{ 'selected' if d.email == dono }}>{{ d.nome }} ({{ d.email }})</option>{% endfor %}
+        <option value="{{ sem_dono_valor }}" {{ 'selected' if dono == sem_dono_valor }}>Sem dono (criadas antes do login)</option>
+      </select>
+      <noscript><button type="submit" class="btn-sec">Filtrar</button></noscript>
+      {% if dono %}<a href="/admin/conteudo" class="hint">Limpar</a>{% endif %}
+    </form>
+
+    {% if erro %}<div class="alert alert-error" role="alert">{{ erro }}</div>{% endif %}
+
+    <h2>Pastas <span class="hint">· {{ pastas|length }}{% if pastas|length >= limite %} (as {{ limite }} mais recentes){% endif %}</span></h2>
+    {% if pastas %}
+      <table class="tabela">
+        <thead><tr><th>Pasta</th><th>Dono</th><th>Visibilidade</th><th>Documentos</th><th>Atualizada</th></tr></thead>
+        <tbody>
+          {% for p in pastas %}
+            <tr>
+              <td><a href="/pastas/{{ p.id }}"><strong>{{ p.nome }}</strong></a>{% if p.descricao %}<div class="msg-job">{{ p.descricao }}</div>{% endif %}</td>
+              <td class="termo">{% if p.dono %}{{ nomes.get(p.dono, p.dono) }}{% else %}<span class="hint">sem dono</span>{% endif %}</td>
+              <td>{% if p.publica %}<span class="badge badge-concluido">Pública</span>{% else %}<span class="badge badge-fila">Privada</span>{% endif %}</td>
+              <td class="num">{{ p.itens }}</td>
+              <td class="nowrap">{{ p.atualizado_local.strftime('%d/%m/%Y %H:%M') if p.atualizado_local else '—' }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% elif not erro %}
+      <div class="empty">Nenhuma pasta{{ ' deste dono' if dono }}.</div>
+    {% endif %}
+
+    <h2>Buscas salvas <span class="hint">· {{ buscas|length }}{% if buscas|length >= limite %} (as {{ limite }} mais recentes){% endif %}</span></h2>
+    {% if buscas %}
+      <table class="tabela">
+        <thead><tr><th>Busca</th><th>Dono</th><th>Alerta</th><th>Criada</th><th></th></tr></thead>
+        <tbody>
+          {% for b in buscas %}
+            <tr>
+              <td><strong>{{ b.nome }}</strong>
+                <div class="busca-salva-q">"{{ b.q }}"{% if b.projeto %} · projeto {{ b.projeto }}{% endif %}{% if b.filtros_texto %} · {{ b.filtros_texto }}{% endif %}</div>
+              </td>
+              <td class="termo">{% if b.dono %}{{ nomes.get(b.dono, b.dono) }}{% else %}<span class="hint">sem dono</span>{% endif %}</td>
+              <td>{% if b.frequencia == 'nenhuma' %}<span class="hint">—</span>{% else %}{{ b.frequencia_texto }} <span class="hint">para {{ b.alerta_email }}</span>{% endif %}</td>
+              <td class="nowrap">{{ b.criado_local.strftime('%d/%m/%Y') if b.criado_local else '—' }}</td>
+              <td class="nowrap"><a href="{{ b.link }}">Abrir</a></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% elif not erro %}
+      <div class="empty">Nenhuma busca salva{{ ' deste dono' if dono }}.</div>
+    {% endif %}
+  </main>
+</div>
+{% endblock %}

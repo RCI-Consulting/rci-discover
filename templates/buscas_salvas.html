@@ -2,15 +2,15 @@
 {% block title %}Buscas salvas — {{ app_nome }}{% endblock %}
 {% block content %}
 <div class="page is-results">
-  {% set ativo = 'buscas_salvas' %}
+  {% set ativo = 'perfil' %}
   {% include '_topbar.html' %}
 
   <main class="tabela-area">
+    <p class="voltar-perfil"><a href="/perfil">&larr; Meu perfil</a></p>
     <h1>Buscas salvas</h1>
     <p class="hint">
       Salve uma busca pelo link <strong>☆ Salvar busca</strong> da tela de resultados. Ela guarda o termo, os filtros, os temas e a ordem,
       e pode avisar por e-mail quando entrarem documentos novos ou atualizados.
-      {% if sem_login %}<br>Ainda sem login: todo mundo vê e pode mudar as mesmas buscas salvas.{% endif %}
     </p>
 
     {% if erro %}<div class="alert alert-error">{{ erro }}</div>{% endif %}

@@ -5,14 +5,11 @@
   <nav class="topnav">
     <a href="/busca"{% if ativo == 'buscar' %} class="active"{% endif %}>Buscar</a>
     <a href="/projetos"{% if ativo == 'projetos' %} class="active"{% endif %}>Projetos</a>
-    <a href="/pastas"{% if ativo == 'pastas' %} class="active"{% endif %}>Pastas</a>
-    <a href="/buscas-salvas"{% if ativo == 'buscas_salvas' %} class="active"{% endif %}>Buscas salvas</a>
     {% if eh_admin %}<a href="/admin"{% if ativo == 'admin' %} class="active"{% endif %}>Administração</a>{% endif %}
   </nav>
   {% if usuario_nome %}
     <div class="topuser">
-      <span class="topuser-nome">{{ usuario_nome }}</span>
-      <a href="/minha-senha">Minha senha</a>
+      <a href="/perfil" class="topuser-nome{{ ' active' if ativo == 'perfil' }}" title="Meu perfil: dados, pastas e buscas salvas">{{ usuario_nome }}</a>
       <form method="post" action="/sair"><button type="submit" class="topuser-sair">Sair</button></form>
     </div>
   {% endif %}

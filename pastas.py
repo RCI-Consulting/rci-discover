@@ -104,6 +104,23 @@ def listar(usuario):
     return minhas, publicas
 
 
+LIMITE_TODAS = 500
+
+
+def todas(dono=None, sem_dono=False):
+    """Pastas de todo mundo, mais recentes primeiro (visão do administrador).
+    Com `dono`, só as dessa pessoa; com `sem_dono`, só as criadas antes do
+    login (dono vazio). No máximo LIMITE_TODAS."""
+    sql, params = _COLUNAS, ()
+    if sem_dono:
+        sql += " WHERE p.dono IS NULL"
+    elif dono:
+        sql, params = sql + " WHERE p.dono = %s", (dono,)
+    with _conectar() as con, con.cursor() as cur:
+        cur.execute(f"{sql} ORDER BY p.atualizado_em DESC LIMIT {LIMITE_TODAS}", params)
+        return cur.fetchall()
+
+
 def editaveis(usuario, indice=None, doc_id=None):
     """Pastas onde o usuário pode guardar documentos, marcando as que já
     têm o documento (para o popup "Salvar na pasta")."""

@@ -2,11 +2,11 @@
 {% block title %}{{ app_nome }}{% endblock %}
 {% block head_extra %}<script src="{{ url_for('static', filename='autocomplete.js') }}" defer></script>{% endblock %}
 {% block content %}
-<div class="page {{ 'is-results' if q else 'is-home' }}">
+<div class="page {{ 'is-results' if q or listar_tudo else 'is-home' }}">
   {% set ativo = 'projetos' if projeto else 'buscar' %}
   {% include '_topbar.html' %}
 
-  {% if not q %}<div class="home-hero">
+  {% if not (q or listar_tudo) %}<div class="home-hero">
     <a href="/" class="brand">
       {% include '_marca.html' %}
     </a>
@@ -19,7 +19,7 @@
     {% endif %}
   {% endif %}
 
-    {% if q %}<div class="grade-3 linha-busca"><div></div><div class="coluna-centro">{% endif %}
+    {% if q or listar_tudo %}<div class="grade-3 linha-busca"><div></div><div class="coluna-centro">{% endif %}
     <form method="get" action="{{ acao }}" class="search-form" role="search">
       <div class="search-box">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -29,15 +29,15 @@
         <input type="text" name="q" value="{{ q }}" placeholder="{{ 'Pesquisar em ' ~ projeto.nome ~ '...' if projeto else 'Pesquisar documentos...' }}" autofocus autocomplete="off"
                role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="lista-sugestoes"
                data-projeto="{{ projeto.slug if projeto else '' }}">
-        {% if q %}<a class="clear" href="{{ acao }}" title="Limpar busca">&times;</a>{% endif %}
+        {% if q or listar_tudo %}<a class="clear" href="{{ acao }}" title="Limpar busca">&times;</a>{% endif %}
       </div>
       <button type="submit" class="search-btn">Buscar</button>
     </form>
-    {% if q %}</div><div></div></div>{% endif %}
+    {% if q or listar_tudo %}</div><div></div></div>{% endif %}
 
-  {% if not q %}</div>{% endif %}
+  {% if not (q or listar_tudo) %}</div>{% endif %}
 
-  {% if q %}
+  {% if q or listar_tudo %}
   <main class="grade-3 results-area">
     <aside class="facetas" aria-label="Filtros">
     {% if facetas %}
@@ -71,8 +71,8 @@
     {% endif %}
     {% if not erro %}
       <div class="results-meta">
-        <span>{{ total }} resultado(s) para "{{ q }}"{% if filtrando or temas_ativos %} <span class="hint">· filtrado</span>{% endif %}{% if paginas > 1 %} · página {{ pagina }} de {{ paginas }}{% endif %}
-          · <button type="button" class="link-botao" id="abrir-salvar-busca" aria-haspopup="dialog">☆ Salvar busca</button></span>
+        <span>{% if listar_tudo %}{{ total }} documento(s) {{ 'no projeto' if projeto else 'nos índices' }}{% else %}{{ total }} resultado(s) para "{{ q }}"{% endif %}{% if filtrando or temas_ativos %} <span class="hint">· filtrado</span>{% endif %}{% if paginas > 1 %} · página {{ pagina }} de {{ paginas }}{% endif %}
+          {% if q %}· <button type="button" class="link-botao" id="abrir-salvar-busca" aria-haspopup="dialog">☆ Salvar busca</button>{% endif %}</span>
         {% if total > 1 %}
           <nav class="ordenacao" aria-label="Ordenar resultados">Ordenar:
             {% for chave, rotulo, _ in ordenacoes %}
@@ -144,7 +144,7 @@
     {% if not resultados and not erro and total > 0 %}
       <div class="empty">Essa página não existe. <a href="{{ url_com(pagina=None) }}">Voltar à primeira página</a></div>
     {% elif not resultados and not erro %}
-      <div class="empty">Nenhum documento encontrado para "{{ q }}".{% if filtrando or temas_ativos %} <a href="{{ acao }}?q={{ q|urlencode }}">Limpar filtros</a>{% endif %}</div>
+      <div class="empty">{% if listar_tudo %}Nenhum documento {{ 'no projeto' if projeto else 'nos índices' }}{{ ' com esses filtros' if filtrando or temas_ativos }}.{% else %}Nenhum documento encontrado para "{{ q }}".{% endif %}{% if filtrando or temas_ativos %} <a href="{{ acao }}?q={{ q|urlencode }}">Limpar filtros</a>{% endif %}</div>
       {% if populares %}
         <p class="populares">Buscas populares:
           {% for t in populares %}<a href="{{ acao }}?q={{ t|urlencode }}">{{ t }}</a>{{ ', ' if not loop.last }}{% endfor %}

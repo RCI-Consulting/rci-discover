@@ -2,15 +2,15 @@
 {% block title %}Pastas — {{ app_nome }}{% endblock %}
 {% block content %}
 <div class="page is-results">
-  {% set ativo = 'pastas' %}
+  {% set ativo = 'perfil' %}
   {% include '_topbar.html' %}
 
   <main class="tabela-area">
+    <p class="voltar-perfil"><a href="/perfil">&larr; Meu perfil</a></p>
     <h1>Pastas de trabalho</h1>
     <p class="hint">
       Guarde documentos da busca com <strong>Salvar na pasta</strong> (nos resultados ou no preview). Pastas <strong>privadas</strong> só você vê;
       as <strong>públicas</strong> todo mundo vê, mas só quem criou mexe nelas.
-      {% if sem_login %}<br>Ainda sem login: todo mundo é o mesmo usuário, então as pastas privadas aparecem para todos.{% endif %}
     </p>
 
     {% if erro %}<div class="alert alert-error">{{ erro }}</div>{% endif %}

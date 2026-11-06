@@ -2,7 +2,7 @@
 {% block title %}Minha senha — {{ app_nome }}{% endblock %}
 {% block content %}
 <div class="page is-results">
-  {% set ativo = '' %}
+  {% set ativo = 'perfil' %}
   {% include '_topbar.html' %}
 
   <main class="tabela-area">
@@ -12,7 +12,7 @@
     {% endif %}
 
     {% if erro %}<div class="alert alert-error" role="alert">{{ erro }}</div>{% endif %}
-    {% if sucesso %}<div class="alert alert-ok">{{ sucesso }} <a href="/">Voltar ao início</a></div>{% endif %}
+    {% if sucesso %}<div class="alert alert-ok">{{ sucesso }} <a href="/perfil">Voltar ao perfil</a></div>{% endif %}
 
     <form method="post" class="form-projeto">
       <label class="campo">
@@ -29,7 +29,7 @@
       </label>
       <div class="acoes-form">
         <button type="submit" class="btn-prim">Salvar senha</button>
-        {% if not obrigatoria %}<a href="/" class="voltar-btn">Cancelar</a>{% endif %}
+        {% if not obrigatoria %}<a href="/perfil" class="voltar-btn">Cancelar</a>{% endif %}
       </div>
     </form>
   </main>

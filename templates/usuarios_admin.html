@@ -40,7 +40,7 @@
                 {% else %}<span class="badge badge-concluido">Ativo</span>{% endif %}
               </td>
               <td class="nowrap">{{ u.ultimo_login_local.strftime('%d/%m/%Y %H:%M') if u.ultimo_login_local else '—' }}</td>
-              <td class="nowrap"><a href="/admin/usuarios/{{ u.id }}">Editar</a></td>
+              <td class="nowrap"><a href="/admin/usuarios/{{ u.id }}/perfil">Ver perfil</a> · <a href="/admin/usuarios/{{ u.id }}">Editar</a></td>
             </tr>
           {% endfor %}
         </tbody>

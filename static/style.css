@@ -1381,3 +1381,43 @@ form.inline { display: inline; margin-right: 10px; }
 /* Logo do Discover no topo (quando APP_LOGO está vazio) */
 .home-btn { text-decoration: none; }
 .home-btn .logo-discover { font-size: 24px; }
+
+/* ---- Perfil do usuário --------------------------------------------------- */
+.topuser a.topuser-nome { color: var(--rci-ink); font-weight: 600; padding: 6px 10px; border-radius: 6px; }
+.topuser a.topuser-nome:hover { background: var(--rci-bg-soft); color: var(--rci-blue); }
+.topuser a.topuser-nome.active { background: var(--rci-highlight); color: var(--rci-blue-dark); }
+.voltar-perfil { margin: 0 0 10px 0; font-size: 13.5px; }
+.voltar-perfil a { text-decoration: none; }
+.perfil-cabecalho {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 18px;
+  padding: 20px 22px;
+  margin-bottom: 20px;
+  border: 1px solid var(--rci-border);
+  border-radius: 12px;
+  background: var(--rci-bg-soft);
+}
+.perfil-avatar {
+  flex: 0 0 auto;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--rci-navy);
+  color: #f5eedb;
+  font-size: 28px;
+  font-weight: 700;
+}
+.perfil-dados { flex: 1 1 300px; min-width: 0; }
+.perfil-dados h1 { margin: 0; }
+.perfil-email { margin: 2px 0 6px 0; color: var(--rci-ink); overflow-wrap: anywhere; }
+.perfil-dados .hint { margin: 0; }
+.perfil-acoes { display: flex; gap: 10px; }
+.perfil-secao { margin-top: 26px; }
+.perfil-secao-topo { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; }
+.perfil-secao-topo h2 { margin: 0 0 6px 0; }
+.perfil-secao-topo a { font-size: 13.5px; text-decoration: none; }

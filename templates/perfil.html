@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Meu perfil' if proprio else perfil.nome }} — {{ app_nome }}{% endblock %}
+{% block content %}
+<div class="page is-results">
+  {% if proprio %}{% set ativo = 'perfil' %}{% else %}{% set ativo = 'admin' %}{% set aba = 'usuarios' %}{% endif %}
+  {% include '_topbar.html' %}
+  {% if not proprio %}{% include '_admin_abas.html' %}{% endif %}
+
+  <main class="tabela-area perfil">
+    {% if not proprio %}<p class="voltar-perfil"><a href="/admin/usuarios">&larr; Usuários</a></p>{% endif %}
+
+    <section class="perfil-cabecalho" aria-label="Dados do usuário">
+      <span class="perfil-avatar" aria-hidden="true">{{ perfil.nome[:1]|upper }}</span>
+      <div class="perfil-dados">
+        <h1>{{ perfil.nome }}</h1>
+        <p class="perfil-email">{{ perfil.email }}</p>
+        <p class="hint">
+          <span class="badge {{ 'badge-processando' if perfil.papel == 'admin' else 'badge-fila' }}">{{ perfil.papel_nome }}</span>
+          {% if not perfil.ativo %}<span class="badge badge-erro">Desativado</span>{% endif %}
+          · cadastrado em {{ perfil.criado_em_local.strftime('%d/%m/%Y') }}
+          {% if perfil.ultimo_login_local %} · último acesso em {{ perfil.ultimo_login_local.strftime('%d/%m/%Y %H:%M') }}{% endif %}
+        </p>
+      </div>
+      <div class="perfil-acoes">
+        {% if proprio %}
+          <a href="/minha-senha" class="btn-sec">Trocar senha</a>
+        {% else %}
+          <a href="/admin/usuarios/{{ perfil.id }}" class="btn-sec">Editar usuário</a>
+        {% endif %}
+      </div>
+    </section>
+
+    {% if erro %}<div class="alert alert-error" role="alert">{{ erro }}</div>{% endif %}
+
+    <div class="cards-resumo">
+      <div class="card-resumo"><strong>{{ total_pastas }}</strong><span>pasta(s) · {{ pastas_publicas }} pública(s)</span></div>
+      <div class="card-resumo"><strong>{{ total_buscas }}</strong><span>busca(s) salva(s) · {{ buscas_com_alerta }} com alerta</span></div>
+    </div>
+
+    <section class="perfil-secao" aria-labelledby="titulo-pastas">
+      <div class="perfil-secao-topo">
+        <h2 id="titulo-pastas">{{ 'Minhas pastas' if proprio else 'Pastas' }}{% if proprio and total_pastas > pastas|length %} <span class="hint">· as {{ pastas|length }} mais recentes</span>{% endif %}</h2>
+        {% if proprio %}<a href="/pastas">Ver todas as pastas &rarr;</a>{% else %}<a href="/admin/conteudo?dono={{ perfil.email|urlencode }}">Ver na visão geral &rarr;</a>{% endif %}
+      </div>
+      {% if pastas %}
+        <div class="grade-pastas">
+          {% for p in pastas %}
+            <a class="card-pasta" href="/pastas/{{ p.id }}">
+              <strong>{{ p.nome }}</strong>
+              <span class="hint">{{ p.itens }} documento(s) · {{ 'pública' if p.publica else 'privada' }}{% if p.atualizado_local %} · {{ p.atualizado_local.strftime('%d/%m/%Y') }}{% endif %}</span>
+            </a>
+          {% endfor %}
+        </div>
+      {% elif not erro %}
+        <p class="hint">{% if proprio %}Você ainda não tem pastas. Guarde documentos com <strong>Salvar na pasta</strong>, nos resultados da busca ou no preview, ou <a href="/pastas">crie uma pasta</a>.{% else %}Nenhuma pasta.{% endif %}</p>
+      {% endif %}
+    </section>
+
+    <section class="perfil-secao" aria-labelledby="titulo-buscas">
+      <div class="perfil-secao-topo">
+        <h2 id="titulo-buscas">{{ 'Minhas buscas salvas' if proprio else 'Buscas salvas' }}{% if proprio and total_buscas > buscas|length %} <span class="hint">· as {{ buscas|length }} mais recentes</span>{% endif %}</h2>
+        {% if proprio %}<a href="/buscas-salvas">Ver todas as buscas &rarr;</a>{% else %}<a href="/admin/conteudo?dono={{ perfil.email|urlencode }}">Ver na visão geral &rarr;</a>{% endif %}
+      </div>
+      {% if buscas %}
+        <table class="tabela">
+          <thead><tr><th>Busca</th><th>Alerta</th><th></th></tr></thead>
+          <tbody>
+            {% for b in buscas %}
+              <tr>
+                <td>
+                  <a href="{{ b.link }}"><strong>{{ b.nome }}</strong></a>
+                  <div class="busca-salva-q">"{{ b.q }}"{% if b.projeto %} · projeto {{ b.projeto }}{% endif %}{% if b.filtros_texto %} · {{ b.filtros_texto }}{% endif %}</div>
+                </td>
+                <td>{% if b.frequencia == 'nenhuma' %}<span class="hint">—</span>{% else %}{{ b.frequencia_texto }}{% endif %}</td>
+                <td class="nowrap"><a href="{{ b.link }}">Abrir</a>{% if proprio %} · <a href="/buscas-salvas/{{ b.id }}">Editar</a>{% endif %}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% elif not erro %}
+        <p class="hint">{% if proprio %}Nenhuma busca salva. Use <strong>☆ Salvar busca</strong> na tela de resultados.{% else %}Nenhuma busca salva.{% endif %}</p>
+      {% endif %}
+    </section>
+  </main>
+</div>
+{% endblock %}

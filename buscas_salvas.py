@@ -124,6 +124,23 @@ def listar(dono):
         return [_preparar(b) for b in cur.fetchall()]
 
 
+LIMITE_TODAS = 500
+
+
+def todas(dono=None, sem_dono=False):
+    """Buscas salvas de todo mundo, mais recentes primeiro (visão do
+    administrador). Com `dono`, só as dessa pessoa; com `sem_dono`, só as
+    criadas antes do login. No máximo LIMITE_TODAS."""
+    sql, params = "SELECT * FROM buscas_salvas", ()
+    if sem_dono:
+        sql += " WHERE dono IS NULL"
+    elif dono:
+        sql, params = sql + " WHERE dono = %s", (dono,)
+    with _conectar() as con, con.cursor() as cur:
+        cur.execute(f"{sql} ORDER BY criado_em DESC LIMIT {LIMITE_TODAS}", params)
+        return [_preparar(b) for b in cur.fetchall()]
+
+
 def obter(busca_id, dono):
     """A busca, se for desse dono (ninguém mexe na busca salva de outro)."""
     with _conectar() as con, con.cursor() as cur:

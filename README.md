@@ -764,3 +764,64 @@ Contra um MariaDB descartável:
 
 ## Arquivos
 - Alterados: `config.py` (`INDEX_REPLICAS`), `indices.py`, `opensearch_client.py` (`ajustar_replicas`), `web_app.py` (ajuste ao subir), `templates/login.html`.
+
+06/11/2026 (2)
+
+# Busca vazia lista todos os documentos
+- **Como usar:** clicar em **Buscar** com o campo vazio (`/busca?q=`) mostra **todos os documentos** dos índices. Dentro de um projeto (`/p/<projeto>?q=`), só os do projeto.
+- **Ordem:** os mais recentes primeiro (data de indexação). Dá para trocar para "Nome (A–Z)". "Relevância" some da lista, porque sem termo não há o que pontuar.
+- **O que funciona igual a uma busca normal:** filtros laterais (índice, tipo, data), temas e paginação. Serve para navegar pelo acervo só com os filtros.
+- **Total:** mostra a contagem real de documentos, mesmo acima de 10 mil (`track_total_hits`).
+- **Limite:** a paginação vai até 10 mil documentos (1.000 páginas de 10), o limite padrão do OpenSearch para paginar. Para chegar ao resto, use os filtros ou a ordem por nome.
+- **O que fica de fora** (dependem de um termo):
+  - trecho destacado;
+  - "Você quis dizer";
+  - sinônimos do dicionário;
+  - destaques;
+  - "Salvar busca";
+  - registro na auditoria.
+- **Sem mudança:** abrir `/busca` sem buscar continua mostrando só a caixa de busca, e a busca com termo continua igual.
+
+## Como foi testado
+Com o OpenSearch simulado:
+- **`/busca`:** não consulta nada.
+- **`/busca?q=`:** manda `match_all`, ordenado por `indexado_em`, com `track_total_hits` e sem destaque. A tela mostra "12345 documento(s) nos índices", sem "Salvar busca" e sem a ordem por relevância.
+- **Paginação e filtros:** mantêm o `q` vazio; filtro e página 2 funcionam; a ordem por nome é respeitada.
+- **Busca com termo:** continua como antes.
+
+## Arquivos
+- Alterados: `web_app.py` (`_pesquisar` com `listar_tudo`, `_tela_busca`) e `templates/index.html`.
+
+06/11/2026 (3)
+
+# Perfil do usuário e visão geral de pastas e buscas
+- **Menu do topo:** ficou com **Buscar**, **Projetos** e, para administradores, **Administração**. "Pastas" e "Buscas salvas" saíram do menu: o nome de quem está logado, no canto direito, leva ao **perfil**.
+- **Perfil (`/perfil`):**
+  - **dados:** nome, e-mail, papel, data de cadastro e último acesso, mais o botão "Trocar senha";
+  - **resumo:** total de pastas (e quantas são públicas) e de buscas salvas (e quantas têm alerta);
+  - **listas:** as 6 pastas e as 5 buscas salvas mais recentes, com links "Ver todas as pastas" (`/pastas`) e "Ver todas as buscas" (`/buscas-salvas`).
+- **Telas de pastas e buscas salvas:** continuam existindo, agora com um link "← Meu perfil". Abrir uma pasta, editar uma busca e trocar a senha também marcam o perfil como ativo no topo.
+
+## Administradores
+- **Perfil de qualquer usuário:** em Administração → Usuários → **Ver perfil** (`/admin/usuarios/<id>/perfil`). Mostra os dados e **todas** as pastas da pessoa, inclusive as privadas (o admin já podia abrir e editar pastas privadas), e as buscas salvas, que podem ser abertas mas não editadas.
+- **Visão geral** (Administração → Usuários → **Pastas e buscas**, `/admin/conteudo`): todas as pastas e buscas salvas do sistema, mais recentes primeiro, com o nome do dono.
+  - **Filtro por dono:** inclui a opção "Sem dono", para os itens criados antes do login.
+  - **Limite:** mostra até 500 de cada.
+- **Menu da administração:** ganhou o grupo **Usuários** (Usuários, Pastas e buscas). Configurações ficou só com E-mail.
+
+## Como foi testado
+Contra um MariaDB descartável:
+- **Menu:** sem Pastas e Buscas salvas; o nome leva ao perfil.
+- **Perfil:** mostra os dados e as 6 pastas mais recentes de 9 (com o total certo), as buscas e os links para as telas completas. Não mostra pastas sem dono.
+- **Usuário comum:** recebe 403 na visão geral e no perfil de outra pessoa.
+- **Admin:** vê o perfil completo de outra pessoa, inclusive pastas privadas, sem link para editar as buscas dela.
+- **Visão geral:** mostra tudo; o filtro por dono e "Sem dono" funcionam.
+- **Telas existentes:** pastas, buscas salvas, troca de senha e busca continuam abrindo.
+
+## Arquivos
+- Novos: `templates/perfil.html`, `templates/admin_conteudo.html`.
+- Alterados:
+  - `web_app.py` (rotas `/perfil`, `/admin/usuarios/<id>/perfil`, `/admin/conteudo`);
+  - `pastas.py` e `buscas_salvas.py` (`todas()`);
+  - `templates/_topbar.html`, `_admin_abas.html`, `usuarios_admin.html`, `pastas.html`, `buscas_salvas.html`, `pasta.html`, `busca_salva_form.html`, `minha_senha.html`;
+  - `static/style.css`.
